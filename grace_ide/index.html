@@ -1,0 +1,1046 @@
+// Grace Syntax Highlighting System
+// Advanced multi-language syntax highlighting for Grace IDE
+
+class SyntaxHighlighter {
+    constructor(config = {}) {
+        // Configuration
+        this.config = {
+            theme: config.theme || 'grace-dark',
+            tabSize: config.tabSize || 4,
+            showLineNumbers: config.showLineNumbers !== false,
+            showInvisibles: config.showInvisibles || false,
+            highlightActiveLine: config.highlightActiveLine !== false,
+            highlightMatchingBrackets: config.highlightMatchingBrackets !== false,
+            enableLiveHighlighting: config.enableLiveHighlighting !== false,
+            maxHighlightLength: config.maxHighlightLength || 100000, // 100KB limit for performance
+            ...config
+        };
+        
+        // State
+        this.state = {
+            initialized: false,
+            activeLanguage: null,
+            activeTheme: this.config.theme,
+            cache: new Map(),
+            workers: new Map()
+        };
+        
+        // Language definitions
+        this.languages = new Map();
+        this.themes = new Map();
+        
+        // Token types
+        this.tokenTypes = {
+            KEYWORD: 'keyword',
+            IDENTIFIER: 'identifier',
+            STRING: 'string',
+            NUMBER: 'number',
+            COMMENT: 'comment',
+            OPERATOR: 'operator',
+            PUNCTUATION: 'punctuation',
+            FUNCTION: 'function',
+            CLASS: 'class',
+            VARIABLE: 'variable',
+            CONSTANT: 'constant',
+            PROPERTY: 'property',
+            TAG: 'tag',
+            ATTRIBUTE: 'attribute',
+            BUILTIN: 'builtin',
+            REGEX: 'regex',
+            TEMPLATE: 'template',
+            DECORATOR: 'decorator',
+            ERROR: 'error'
+        };
+        
+        // Initialize
+        this.initialize();
+    }
+    
+    // Initialization
+    initialize() {
+        console.log('🎨 Initializing Grace Syntax Highlighter...');
+        
+        // Register built-in languages
+        this.registerBuiltInLanguages();
+        
+        // Register built-in themes
+        this.registerBuiltInThemes();
+        
+        // Setup worker for background highlighting
+        if (typeof Worker !== 'undefined' && this.config.enableLiveHighlighting) {
+            this.setupHighlightingWorker();
+        }
+        
+        // Inject styles
+        this.injectStyles();
+        
+        // Connect to Grace Core
+        this.connectToGraceCore();
+        
+        this.state.initialized = true;
+        console.log('✅ Syntax Highlighter initialized');
+    }
+    
+    // Language Registration
+    registerBuiltInLanguages() {
+        // JavaScript
+        this.registerLanguage('javascript', {
+            name: 'JavaScript',
+            extensions: ['.js', '.jsx', '.mjs'],
+            keywords: [
+                'async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
+                'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
+                'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let',
+                'new', 'of', 'return', 'static', 'super', 'switch', 'this', 'throw',
+                'try', 'typeof', 'var', 'void', 'while', 'with', 'yield'
+            ],
+            builtins: [
+                'Array', 'Object', 'String', 'Number', 'Boolean', 'Date', 'Math', 'JSON',
+                'Promise', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Proxy',
+                'Reflect', 'console', 'window', 'document', 'global', 'process'
+            ],
+            operators: [
+                '=', '+=', '-=', '*=', '/=', '%=', '**=', '<<=', '>>=', '>>>=',
+                '&=', '|=', '^=', '&&=', '||=', '??=', '==', '!=', '===', '!==',
+                '<', '>', '<=', '>=', '<<', '>>', '>>>', '+', '-', '*', '/', '%',
+                '**', '++', '--', '&&', '||', '!', '~', '&', '|', '^', '?', ':',
+                '=>', '...', '??', '?.'
+            ],
+            stringDelimiters: ['"', "'", '`'],
+            commentDelimiters: {
+                single: '//',
+                multi: ['/*', '*/']
+            }
+        });
+        
+        // Python
+        this.registerLanguage('python', {
+            name: 'Python',
+            extensions: ['.py', '.pyw'],
+            keywords: [
+                'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue',
+                'def', 'del', 'elif', 'else', 'except', 'False', 'finally', 'for',
+                'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'None',
+                'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'True', 'try',
+                'while', 'with', 'yield'
+            ],
+            builtins: [
+                'abs', 'all', 'any', 'ascii', 'bin', 'bool', 'bytes', 'callable',
+                'chr', 'classmethod', 'compile', 'complex', 'delattr', 'dict', 'dir',
+                'divmod', 'enumerate', 'eval', 'exec', 'filter', 'float', 'format',
+                'frozenset', 'getattr', 'globals', 'hasattr', 'hash', 'help', 'hex',
+                'id', 'input', 'int', 'isinstance', 'issubclass', 'iter', 'len',
+                'list', 'locals', 'map', 'max', 'memoryview', 'min', 'next', 'object',
+                'oct', 'open', 'ord', 'pow', 'print', 'property', 'range', 'repr',
+                'reversed', 'round', 'set', 'setattr', 'slice', 'sorted', 'staticmethod',
+                'str', 'sum', 'super', 'tuple', 'type', 'vars', 'zip', '__import__'
+            ],
+            operators: [
+                '=', '+=', '-=', '*=', '/=', '//=', '%=', '**=', '&=', '|=', '^=',
+                '>>=', '<<=', '==', '!=', '<', '>', '<=', '>=', 'and', 'or', 'not',
+                'in', 'is', '+', '-', '*', '/', '//', '%', '**', '~', '&', '|',
+                '^', '>>', '<<'
+            ],
+            stringDelimiters: ['"', "'", '"""', "'''"],
+            commentDelimiters: {
+                single: '#'
+            }
+        });
+        
+        // HTML
+        this.registerLanguage('html', {
+            name: 'HTML',
+            extensions: ['.html', '.htm', '.xhtml'],
+            tagNames: [
+                'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio', 'b', 'base',
+                'bdi', 'bdo', 'blockquote', 'body', 'br', 'button', 'canvas', 'caption',
+                'cite', 'code', 'col', 'colgroup', 'data', 'datalist', 'dd', 'del',
+                'details', 'dfn', 'dialog', 'div', 'dl', 'dt', 'em', 'embed', 'fieldset',
+                'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5',
+                'h6', 'head', 'header', 'hgroup', 'hr', 'html', 'i', 'iframe', 'img',
+                'input', 'ins', 'kbd', 'label', 'legend', 'li', 'link', 'main', 'map',
+                'mark', 'menu', 'meta', 'meter', 'nav', 'noscript', 'object', 'ol',
+                'optgroup', 'option', 'output', 'p', 'param', 'picture', 'pre', 'progress',
+                'q', 'rp', 'rt', 'ruby', 's', 'samp', 'script', 'section', 'select',
+                'small', 'source', 'span', 'strong', 'style', 'sub', 'summary', 'sup',
+                'svg', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th',
+                'thead', 'time', 'title', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr'
+            ],
+            attributeNames: [
+                'accept', 'action', 'alt', 'async', 'autocomplete', 'autofocus', 'autoplay',
+                'charset', 'checked', 'class', 'cols', 'colspan', 'content', 'contenteditable',
+                'controls', 'coords', 'data', 'datetime', 'defer', 'dir', 'disabled',
+                'download', 'draggable', 'enctype', 'for', 'form', 'headers', 'height',
+                'hidden', 'href', 'id', 'lang', 'list', 'loop', 'max', 'maxlength', 'media',
+                'method', 'min', 'multiple', 'muted', 'name', 'novalidate', 'onblur',
+                'onchange', 'onclick', 'onfocus', 'onkeydown', 'onkeypress', 'onkeyup',
+                'onload', 'onmousedown', 'onmousemove', 'onmouseout', 'onmouseover',
+                'onmouseup', 'onsubmit', 'open', 'pattern', 'placeholder', 'poster',
+                'preload', 'readonly', 'rel', 'required', 'rows', 'rowspan', 'sandbox',
+                'scope', 'selected', 'shape', 'size', 'sizes', 'span', 'spellcheck', 'src',
+                'srcdoc', 'srcset', 'start', 'step', 'style', 'tabindex', 'target', 'title',
+                'type', 'usemap', 'value', 'width', 'wrap'
+            ]
+        });
+        
+        // CSS
+        this.registerLanguage('css', {
+            name: 'CSS',
+            extensions: ['.css', '.scss', '.sass', '.less'],
+            keywords: [
+                'import', 'media', 'charset', 'font-face', 'namespace', 'supports',
+                'keyframes', 'page', 'viewport', 'counter-style'
+            ],
+            properties: [
+                'align-content', 'align-items', 'align-self', 'animation', 'background',
+                'border', 'border-radius', 'bottom', 'box-shadow', 'box-sizing', 'color',
+                'content', 'cursor', 'display', 'flex', 'flex-direction', 'flex-wrap',
+                'float', 'font', 'font-family', 'font-size', 'font-weight', 'height',
+                'justify-content', 'left', 'line-height', 'margin', 'max-height',
+                'max-width', 'min-height', 'min-width', 'opacity', 'overflow', 'padding',
+                'position', 'right', 'text-align', 'text-decoration', 'text-transform',
+                'top', 'transform', 'transition', 'vertical-align', 'visibility', 'width',
+                'z-index'
+            ],
+            values: [
+                'absolute', 'auto', 'block', 'bold', 'border-box', 'center', 'fixed',
+                'flex', 'hidden', 'inherit', 'inline', 'inline-block', 'italic', 'left',
+                'none', 'normal', 'nowrap', 'pointer', 'relative', 'right', 'solid',
+                'transparent', 'underline', 'visible'
+            ]
+        });
+        
+        // JSON
+        this.registerLanguage('json', {
+            name: 'JSON',
+            extensions: ['.json', '.jsonc'],
+            constants: ['true', 'false', 'null']
+        });
+        
+        // Markdown
+        this.registerLanguage('markdown', {
+            name: 'Markdown',
+            extensions: ['.md', '.markdown'],
+            markers: {
+                heading: '#',
+                bold: ['**', '__'],
+                italic: ['*', '_'],
+                code: '`',
+                codeBlock: '```',
+                list: ['-', '*', '+'],
+                orderedList: /^\d+\./,
+                blockquote: '>',
+                horizontalRule: ['---', '***', '___']
+            }
+        });
+    }
+    
+    registerLanguage(id, definition) {
+        this.languages.set(id, {
+            id: id,
+            ...definition
+        });
+    }
+    
+    // Theme Registration
+    registerBuiltInThemes() {
+        // Grace Dark Theme
+        this.registerTheme('grace-dark', {
+            name: 'Grace Dark',
+            colors: {
+                background: '#0a0b1e',
+                foreground: '#ffffff',
+                lineNumber: '#5a5b6e',
+                activeLine: '#1a1b2e',
+                selection: '#2a2b3e',
+                cursor: '#00d4ff',
+                
+                // Token colors
+                keyword: '#ff79c6',
+                identifier: '#f8f8f2',
+                string: '#f1fa8c',
+                number: '#bd93f9',
+                comment: '#6272a4',
+                operator: '#ff79c6',
+                punctuation: '#f8f8f2',
+                function: '#50fa7b',
+                class: '#8be9fd',
+                variable: '#f8f8f2',
+                constant: '#bd93f9',
+                property: '#8be9fd',
+                tag: '#ff79c6',
+                attribute: '#50fa7b',
+                builtin: '#8be9fd',
+                regex: '#ff5555',
+                template: '#f1fa8c',
+                decorator: '#ffb86c',
+                error: '#ff5555',
+                
+                // Special
+                strong: '#ffb86c',
+                emphasis: '#f1fa8c'
+            }
+        });
+        
+        // Grace Light Theme
+        this.registerTheme('grace-light', {
+            name: 'Grace Light',
+            colors: {
+                background: '#ffffff',
+                foreground: '#000000',
+                lineNumber: '#999999',
+                activeLine: '#f5f5f5',
+                selection: '#e0e0e0',
+                cursor: '#0066cc',
+                
+                keyword: '#d73a49',
+                identifier: '#24292e',
+                string: '#032f62',
+                number: '#005cc5',
+                comment: '#6a737d',
+                operator: '#d73a49',
+                punctuation: '#24292e',
+                function: '#6f42c1',
+                class: '#e36209',
+                variable: '#24292e',
+                constant: '#005cc5',
+                property: '#005cc5',
+                tag: '#22863a',
+                attribute: '#6f42c1',
+                builtin: '#e36209',
+                regex: '#d73a49',
+                template: '#032f62',
+                decorator: '#6f42c1',
+                error: '#d73a49'
+            }
+        });
+        
+        // Grace Matrix Theme
+        this.registerTheme('grace-matrix', {
+            name: 'Grace Matrix',
+            colors: {
+                background: '#000000',
+                foreground: '#00ff00',
+                lineNumber: '#008800',
+                activeLine: '#001100',
+                selection: '#003300',
+                cursor: '#00ff00',
+                
+                keyword: '#00ff00',
+                identifier: '#00cc00',
+                string: '#00ff88',
+                number: '#88ff00',
+                comment: '#008800',
+                operator: '#00ff00',
+                punctuation: '#00cc00',
+                function: '#00ffcc',
+                class: '#ccff00',
+                variable: '#00cc00',
+                constant: '#88ff00',
+                property: '#00ffcc',
+                tag: '#00ff00',
+                attribute: '#00ffcc',
+                builtin: '#ccff00',
+                regex: '#ffff00',
+                template: '#00ff88',
+                decorator: '#00ccff',
+                error: '#ff0000'
+            }
+        });
+    }
+    
+    registerTheme(id, definition) {
+        this.themes.set(id, {
+            id: id,
+            ...definition
+        });
+    }
+    
+    // Highlighting Methods
+    async highlight(text, languageId, options = {}) {
+        // Check cache first
+        const cacheKey = `${languageId}:${text.substring(0, 100)}:${text.length}`;
+        if (this.state.cache.has(cacheKey) && !options.noCache) {
+            return this.state.cache.get(cacheKey);
+        }
+        
+        // Check text size limit
+        if (text.length > this.config.maxHighlightLength) {
+            console.warn('Text too long for highlighting, returning plain text');
+            return this.createPlainTextResult(text);
+        }
+        
+        // Get language definition
+        const language = this.languages.get(languageId);
+        if (!language) {
+            console.warn(`Language ${languageId} not found`);
+            return this.createPlainTextResult(text);
+        }
+        
+        // Tokenize
+        const tokens = this.tokenize(text, language);
+        
+        // Apply theme
+        const themed = this.applyTheme(tokens, this.state.activeTheme);
+        
+        // Create HTML
+        const html = this.createHighlightedHTML(themed, options);
+        
+        // Cache result
+        const result = {
+            html: html,
+            tokens: tokens,
+            language: languageId
+        };
+        
+        this.state.cache.set(cacheKey, result);
+        
+        return result;
+    }
+    
+    // Simple tokenizer
+    tokenize(text, language) {
+        const tokens = [];
+        const lines = text.split('\n');
+        
+        lines.forEach((line, lineIndex) => {
+            let position = 0;
+            
+            while (position < line.length) {
+                let matched = false;
+                
+                // Check for strings
+                if (language.stringDelimiters) {
+                    for (const delimiter of language.stringDelimiters) {
+                        if (line.substr(position, delimiter.length) === delimiter) {
+                            const endPos = line.indexOf(delimiter, position + delimiter.length);
+                            if (endPos !== -1) {
+                                tokens.push({
+                                    type: 'string',
+                                    value: line.substring(position, endPos + delimiter.length),
+                                    line: lineIndex,
+                                    start: position,
+                                    end: endPos + delimiter.length
+                                });
+                                position = endPos + delimiter.length;
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // Check for single-line comments
+                if (!matched && language.commentDelimiters && language.commentDelimiters.single) {
+                    if (line.substr(position).startsWith(language.commentDelimiters.single)) {
+                        tokens.push({
+                            type: 'comment',
+                            value: line.substring(position),
+                            line: lineIndex,
+                            start: position,
+                            end: line.length
+                        });
+                        position = line.length;
+                        matched = true;
+                    }
+                }
+                
+                // Check for numbers
+                if (!matched) {
+                    const numberMatch = /^\d+(\.\d+)?/.exec(line.substring(position));
+                    if (numberMatch) {
+                        tokens.push({
+                            type: 'number',
+                            value: numberMatch[0],
+                            line: lineIndex,
+                            start: position,
+                            end: position + numberMatch[0].length
+                        });
+                        position += numberMatch[0].length;
+                        matched = true;
+                    }
+                }
+                
+                // Check for keywords and identifiers
+                if (!matched) {
+                    const wordMatch = /^[a-zA-Z_]\w*/.exec(line.substring(position));
+                    if (wordMatch) {
+                        const word = wordMatch[0];
+                        let type = 'identifier';
+                        
+                        if (language.keywords && language.keywords.includes(word)) {
+                            type = 'keyword';
+                        } else if (language.builtins && language.builtins.includes(word)) {
+                            type = 'builtin';
+                        } else if (language.constants && language.constants.includes(word)) {
+                            type = 'constant';
+                        }
+                        
+                        tokens.push({
+                            type: type,
+                            value: word,
+                            line: lineIndex,
+                            start: position,
+                            end: position + word.length
+                        });
+                        position += word.length;
+                        matched = true;
+                    }
+                }
+                
+                // Check for operators
+                if (!matched && language.operators) {
+                    const remaining = line.substring(position);
+                    for (const op of language.operators.sort((a, b) => b.length - a.length)) {
+                        if (remaining.startsWith(op)) {
+                            tokens.push({
+                                type: 'operator',
+                                value: op,
+                                line: lineIndex,
+                                start: position,
+                                end: position + op.length
+                            });
+                            position += op.length;
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // Skip whitespace or add as punctuation
+                if (!matched) {
+                    if (/\s/.test(line[position])) {
+                        position++;
+                    } else {
+                        tokens.push({
+                            type: 'punctuation',
+                            value: line[position],
+                            line: lineIndex,
+                            start: position,
+                            end: position + 1
+                        });
+                        position++;
+                    }
+                }
+            }
+        });
+        
+        return tokens;
+    }
+    
+    applyTheme(tokens, themeId) {
+        const theme = this.themes.get(themeId);
+        if (!theme) {
+            console.warn(`Theme ${themeId} not found`);
+            return tokens;
+        }
+        
+        return tokens.map(token => ({
+            ...token,
+            color: theme.colors[token.type] || theme.colors.foreground,
+            style: this.getTokenStyle(token.type, theme)
+        }));
+    }
+    
+    getTokenStyle(type, theme) {
+        const style = {
+            color: theme.colors[type] || theme.colors.foreground
+        };
+        
+        // Add special styles for certain token types
+        switch (type) {
+            case 'strong':
+                style.fontWeight = 'bold';
+                break;
+            case 'emphasis':
+                style.fontStyle = 'italic';
+                break;
+            case 'comment':
+                style.fontStyle = 'italic';
+                style.opacity = '0.8';
+                break;
+            case 'error':
+                style.textDecoration = 'underline wavy';
+                break;
+        }
+        
+        return style;
+    }
+    
+    createHighlightedHTML(tokens, options) {
+        const lines = this.groupTokensByLine(tokens);
+        const showLineNumbers = options.showLineNumbers ?? this.config.showLineNumbers;
+        const theme = this.themes.get(this.state.activeTheme);
+        
+        let html = '<div class="grace-code-container">';
+        
+        if (showLineNumbers) {
+            html += '<div class="grace-line-numbers">';
+            for (let i = 1; i <= lines.length; i++) {
+                html += `<div class="grace-line-number">${i}</div>`;
+            }
+            html += '</div>';
+        }
+        
+        html += '<div class="grace-code-content">';
+        
+        lines.forEach((lineTokens, lineIndex) => {
+            html += `<div class="grace-code-line" data-line="${lineIndex + 1}">`;
+            
+            if (lineTokens.length === 0) {
+                html += '&nbsp;'; // Empty line
+            } else {
+                let position = 0;
+                lineTokens.forEach(token => {
+                    // Add whitespace before token if needed
+                    if (token.start > position) {
+                        html += ' '.repeat(token.start - position);
+                    }
+                    
+                    // Add token
+                    const style = this.styleToString(token.style);
+                    html += `<span class="grace-token grace-token-${token.type}" style="${style}">${
+                        this.escapeHtml(token.value)
+                    }</span>`;
+                    
+                    position = token.end;
+                });
+            }
+            
+            html += '</div>';
+        });
+        
+        html += '</div></div>';
+        
+        return html;
+    }
+    
+    groupTokensByLine(tokens) {
+        const lines = [];
+        let currentLine = [];
+        let currentLineNum = 0;
+        
+        tokens.forEach(token => {
+            if (token.line > currentLineNum) {
+                // Start new lines
+                while (currentLineNum < token.line) {
+                    lines.push(currentLine);
+                    currentLine = [];
+                    currentLineNum++;
+                }
+            }
+            currentLine.push(token);
+        });
+        
+        // Add last line
+        lines.push(currentLine);
+        
+        return lines;
+    }
+    
+    styleToString(style) {
+        return Object.entries(style)
+            .map(([key, value]) => {
+                const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+                return `${cssKey}: ${value}`;
+            })
+            .join('; ');
+    }
+    
+    createPlainTextResult(text) {
+        const lines = text.split('\n');
+        const html = lines.map((line, i) => 
+            `<div class="grace-code-line" data-line="${i + 1}">${this.escapeHtml(line) || '&nbsp;'}</div>`
+        ).join('');
+        
+        return {
+            html: `<div class="grace-code-container"><div class="grace-code-content">${html}</div></div>`,
+            tokens: [],
+            language: 'plain'
+        };
+    }
+    
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Live Highlighting
+    setupLiveHighlighter(element, languageId, options = {}) {
+        const highlighter = {
+            element: element,
+            language: languageId,
+            options: options,
+            timeout: null
+        };
+        
+        // Input handler
+        const handleInput = () => {
+            if (highlighter.timeout) {
+                clearTimeout(highlighter.timeout);
+            }
+            
+            highlighter.timeout = setTimeout(async () => {
+                const text = element.textContent || element.value;
+                const result = await this.highlight(text, languageId, options);
+                
+                if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+                    // Create overlay for form elements
+                    this.updateHighlightOverlay(element, result.html);
+                } else {
+                    // Direct update for contenteditable
+                    this.updateContentEditable(element, result.html);
+                }
+            }, 100); // 100ms debounce
+        };
+        
+        element.addEventListener('input', handleInput);
+        element._highlighter = highlighter;
+        
+        // Initial highlight
+        handleInput();
+        
+        return highlighter;
+    }
+    
+    updateHighlightOverlay(element, html) {
+        let overlay = element._highlightOverlay;
+        
+        if (!overlay) {
+            // Create overlay
+            overlay = document.createElement('div');
+            overlay.className = 'grace-highlight-overlay';
+            overlay.style.cssText = `
+                position: absolute;
+                pointer-events: none;
+                white-space: pre-wrap;
+                overflow: hidden;
+            `;
+            
+            // Copy styles from element
+            const styles = window.getComputedStyle(element);
+            ['font', 'lineHeight', 'padding', 'border', 'width', 'height'].forEach(prop => {
+                overlay.style[prop] = styles[prop];
+            });
+            
+            element.parentNode.insertBefore(overlay, element);
+            element._highlightOverlay = overlay;
+            
+            // Make element transparent
+            element.style.color = 'transparent';
+            element.style.caretColor = this.themes.get(this.state.activeTheme).colors.cursor;
+        }
+        
+        overlay.innerHTML = html;
+        
+        // Sync scroll
+        overlay.scrollTop = element.scrollTop;
+        overlay.scrollLeft = element.scrollLeft;
+    }
+    
+    updateContentEditable(element, html) {
+        // Save cursor position
+        const selection = window.getSelection();
+        const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+        const startOffset = range ? range.startOffset : 0;
+        
+        // Update content
+        element.innerHTML = html;
+        
+        // Restore cursor position
+        if (range) {
+            try {
+                const newRange = document.createRange();
+                newRange.setStart(element.firstChild, Math.min(startOffset, element.textContent.length));
+                newRange.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            } catch (e) {
+                // Cursor restoration failed, ignore
+            }
+        }
+    }
+    
+    // Worker Setup
+    setupHighlightingWorker() {
+        const workerCode = `
+            let languages = new Map();
+            
+            self.onmessage = function(e) {
+                const { text, language } = e.data;
+                // Simple tokenization in worker
+                self.postMessage({ tokens: [] });
+            };
+        `;
+        
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        
+        // Create worker for each language
+        this.languages.forEach((language, id) => {
+            const worker = new Worker(workerUrl);
+            this.state.workers.set(id, worker);
+        });
+    }
+    
+    // Style Injection
+    injectStyles() {
+        const styleId = 'grace-syntax-highlighter-styles';
+        
+        if (document.getElementById(styleId)) {
+            return;
+        }
+        
+        const styles = document.createElement('style');
+        styles.id = styleId;
+        styles.textContent = `
+            /* Grace Syntax Highlighter Styles */
+            .grace-code-container {
+                font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                font-size: 14px;
+                line-height: 1.5;
+                border-radius: 8px;
+                overflow: auto;
+                position: relative;
+            }
+            
+            .grace-code-container.with-line-numbers {
+                display: flex;
+            }
+            
+            .grace-line-numbers {
+                user-select: none;
+                padding: 16px 8px;
+                text-align: right;
+                border-right: 1px solid var(--grace-border);
+                background: var(--grace-secondary);
+                color: var(--grace-text-secondary);
+            }
+            
+            .grace-line-number {
+                font-size: 12px;
+                line-height: 1.5em;
+                opacity: 0.6;
+            }
+            
+            .grace-code-content {
+                flex: 1;
+                padding: 16px;
+                overflow-x: auto;
+            }
+            
+            .grace-code-line {
+                white-space: pre;
+                position: relative;
+            }
+            
+            .grace-code-line:hover {
+                background: rgba(255, 255, 255, 0.05);
+            }
+            
+            .grace-code-line.active {
+                background: var(--grace-tertiary);
+            }
+            
+            /* Token styles */
+            .grace-token {
+                transition: opacity 0.2s;
+            }
+            
+            .grace-token:hover {
+                opacity: 0.8;
+            }
+            
+            .grace-token-keyword {
+                font-weight: bold;
+            }
+            
+            .grace-token-comment {
+                font-style: italic;
+                opacity: 0.8;
+            }
+            
+            .grace-token-string {
+                position: relative;
+            }
+            
+            .grace-token-error {
+                position: relative;
+                text-decoration: underline wavy red;
+            }
+            
+            /* Selection */
+            .grace-code-container ::selection {
+                background: var(--grace-accent);
+                color: black;
+            }
+            
+            /* Highlight overlay for textareas */
+            .grace-highlight-overlay {
+                background: transparent;
+                color: var(--grace-text);
+                z-index: 1;
+            }
+            
+            .grace-highlight-overlay + textarea,
+            .grace-highlight-overlay + input {
+                position: relative;
+                z-index: 2;
+                background: transparent;
+            }
+            
+            /* Themes */
+            .grace-theme-dark .grace-code-container {
+                background: #0a0b1e;
+                color: #ffffff;
+            }
+            
+            .grace-theme-light .grace-code-container {
+                background: #ffffff;
+                color: #000000;
+            }
+            
+            .grace-theme-matrix .grace-code-container {
+                background: #000000;
+                color: #00ff00;
+                text-shadow: 0 0 5px #00ff00;
+            }
+        `;
+        
+        document.head.appendChild(styles);
+    }
+    
+    // Language Detection
+    detectLanguage(text, filename) {
+        // Try by filename extension
+        if (filename) {
+            const ext = '.' + filename.split('.').pop();
+            for (const [id, lang] of this.languages) {
+                if (lang.extensions && lang.extensions.includes(ext)) {
+                    return id;
+                }
+            }
+        }
+        
+        // Simple content detection
+        if (text.includes('function') || text.includes('const') || text.includes('let')) {
+            return 'javascript';
+        }
+        if (text.includes('def ') || text.includes('import ') || text.includes('class ')) {
+            return 'python';
+        }
+        if (text.includes('<html') || text.includes('<div')) {
+            return 'html';
+        }
+        if (text.includes('{') && text.includes('}') && text.includes(':')) {
+            return 'css';
+        }
+        
+        return 'plain';
+    }
+    
+    // Theme Management
+    setTheme(themeId) {
+        if (!this.themes.has(themeId)) {
+            console.warn(`Theme ${themeId} not found`);
+            return;
+        }
+        
+        this.state.activeTheme = themeId;
+        
+        // Clear cache to force re-highlighting
+        this.state.cache.clear();
+        
+        // Re-highlight all active elements
+        document.querySelectorAll('[data-highlighted]').forEach(element => {
+            const language = element.getAttribute('data-language');
+            const text = element.textContent;
+            this.highlight(text, language).then(result => {
+                element.innerHTML = result.html;
+            });
+        });
+    }
+    
+    // Utility Methods
+    getSupportedLanguages() {
+        return Array.from(this.languages.values()).map(lang => ({
+            id: lang.id,
+            name: lang.name,
+            extensions: lang.extensions
+        }));
+    }
+    
+    getSupportedThemes() {
+        return Array.from(this.themes.values()).map(theme => ({
+            id: theme.id,
+            name: theme.name
+        }));
+    }
+    
+    clearCache() {
+        this.state.cache.clear();
+    }
+    
+    // Grace Core Integration
+    connectToGraceCore() {
+        if (window.graceCore) {
+            // Register syntax highlighter module
+            window.graceCore.loadModule('syntax_highlighter', {
+                name: 'syntax_highlighter',
+                version: '1.0.0',
+                execute: async (command, params) => {
+                    switch (command) {
+                        case 'highlight':
+                            return await this.highlight(params.text, params.language, params.options);
+                        case 'detect':
+                            return this.detectLanguage(params.text, params.filename);
+                        case 'setTheme':
+                            return this.setTheme(params.theme);
+                        case 'getLanguages':
+                            return this.getSupportedLanguages();
+                        case 'getThemes':
+                            return this.getSupportedThemes();
+                        default:
+                            throw new Error(`Unknown syntax highlighter command: ${command}`);
+                    }
+                }
+            });
+            
+            console.log('✅ Syntax Highlighter connected to Grace Core');
+        }
+    }
+    
+    // Cleanup
+    destroy() {
+        // Terminate workers
+        this.state.workers.forEach(worker => {
+            worker.terminate();
+        });
+        this.state.workers.clear();
+        
+        // Clear cache
+        this.state.cache.clear();
+        
+        // Remove event listeners
+        document.querySelectorAll('[data-highlighted]').forEach(element => {
+            if (element._highlighter) {
+                element.removeEventListener('input', element._highlighter.handleInput);
+            }
+        });
+        
+        console.log('Syntax Highlighter destroyed');
+    }
+}
+
+// Export SyntaxHighlighter
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SyntaxHighlighter;
+} else if (typeof window !== 'undefined') {
+    window.SyntaxHighlighter = SyntaxHighlighter;
+    
+    // Auto-initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        window.syntaxHighlighter = new SyntaxHighlighter();
+    });
+}
