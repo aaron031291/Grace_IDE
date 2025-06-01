@@ -1,0 +1,1163 @@
+"""
+Grace_IDE Executor Component
+Handles code execution, process management, debugging, and runtime environments
+"""
+
+import os
+import sys
+import asyncio
+import subprocess
+import threading
+import queue
+import json
+import tempfile
+import shutil
+import signal
+import psutil
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Callable, Any, Union
+from dataclasses import dataclass, field, asdict
+from collections import defaultdict
+import pty
+import select
+import termios
+import struct
+import fcntl
+import ast
+import traceback
+import io
+import contextlib
+from abc import ABC, abstractmethod
+
+
+@dataclass
+class ExecutionConfig:
+    """Configuration for code execution"""
+    language: str
+    code: str
+    file_path: Optional[str] = None
+    working_directory: Optional[str] = None
+    environment_variables: Dict[str, str] = field(default_factory=dict)
+    timeout: Optional[float] = None
+    memory_limit: Optional[int] = None  # in MB
+    cpu_limit: Optional[float] = None  # percentage
+    interactive: bool = False
+    debug: bool = False
+    breakpoints: List[int] = field(default_factory=list)
+    watch_expressions: List[str] = field(default_factory=list)
+    stdin_data: Optional[str] = None
+    
+    
+@dataclass
+class ExecutionResult:
+    """Result of code execution"""
+    id: str
+    status: str  # 'success', 'error', 'timeout', 'killed'
+    exit_code: int
+    stdout: str
+    stderr: str
+    execution_time: float
+    memory_usage: int  # in bytes
+    cpu_usage: float
+    error_details: Optional[Dict] = None
+    debug_info: Optional[Dict] = None
+
+
+@dataclass
+class Process:
+    """Represents a running process"""
+    id: str
+    pid: int
+    config: ExecutionConfig
+    status: str  # 'running', 'stopped', 'completed', 'killed'
+    started_at: datetime
+    ended_at: Optional[datetime] = None
+    process: Optional[subprocess.Popen] = None
+    terminal: Optional['Terminal'] = None
+    output_buffer: List[str] = field(default_factory=list)
+    error_buffer: List[str] = field(default_factory=list)
+
+
+class ExecutorEngine:
+    """Main executor engine for Grace_IDE"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+        self.processes: Dict[str, Process] = {}
+        self.language_runners: Dict[str, 'LanguageRunner'] = {}
+        self.debuggers: Dict[str, 'Debugger'] = {}
+        self.terminals: Dict[str, 'Terminal'] = {}
+        
+        # Initialize language runners
+        self._init_language_runners()
+        
+        # Resource monitoring
+        self.resource_monitor = ResourceMonitor()
+        self.monitoring_task = None
+        
+        # Output handlers
+        self.output_handlers: Dict[str, List[Callable]] = defaultdict(list)
+        
+        # Execution queue for rate limiting
+        self.execution_queue = asyncio.Queue()
+        self.queue_processor_task = None
+        
+        # Security sandbox
+        self.sandbox = SecuritySandbox()
+        
+    def _init_language_runners(self):
+        """Initialize language-specific runners"""
+        self.language_runners = {
+            'python': PythonRunner(),
+            'javascript': JavaScriptRunner(),
+            'typescript': TypeScriptRunner(),
+            'java': JavaRunner(),
+            'cpp': CppRunner(),
+            'c': CRunner(),
+            'go': GoRunner(),
+            'rust': RustRunner(),
+            'ruby': RubyRunner(),
+            'php': PhpRunner(),
+            'shell': ShellRunner(),
+        }
+        
+    async def start(self):
+        """Start the executor engine"""
+        self.monitoring_task = asyncio.create_task(self.resource_monitor.start())
+        self.queue_processor_task = asyncio.create_task(self._process_execution_queue())
+        print("Executor engine started")
+        
+    async def stop(self):
+        """Stop the executor engine"""
+        # Kill all running processes
+        for process_id in list(self.processes.keys()):
+            await self.kill_process(process_id)
+            
+        # Stop monitoring
+        if self.monitoring_task:
+            self.monitoring_task.cancel()
+            
+        if self.queue_processor_task:
+            self.queue_processor_task.cancel()
+            
+        print("Executor engine stopped")
+        
+    async def execute(self, config: ExecutionConfig) -> ExecutionResult:
+        """Execute code with given configuration"""
+        # Validate configuration
+        if config.language not in self.language_runners:
+            return ExecutionResult(
+                id=str(uuid.uuid4()),
+                status='error',
+                exit_code=-1,
+                stdout='',
+                stderr=f'Unsupported language: {config.language}',
+                execution_time=0,
+                memory_usage=0,
+                cpu_usage=0
+            )
+            
+        # Create process ID
+        process_id = str(uuid.uuid4())
+        
+        # Queue execution
+        await self.execution_queue.put((process_id, config))
+        
+        # Wait for execution to complete
+        while process_id not in self.processes:
+            await asyncio.sleep(0.1)
+            
+        process = self.processes[process_id]
+        
+        # Wait for process to complete if not interactive
+        if not config.interactive:
+            while process.status == 'running':
+                await asyncio.sleep(0.1)
+                
+            return self._create_execution_result(process)
+        else:
+            # Return immediately for interactive sessions
+            return ExecutionResult(
+                id=process_id,
+                status='running',
+                exit_code=0,
+                stdout='',
+                stderr='',
+                execution_time=0,
+                memory_usage=0,
+                cpu_usage=0
+            )
+            
+    async def _process_execution_queue(self):
+        """Process execution queue"""
+        while True:
+            try:
+                process_id, config = await self.execution_queue.get()
+                await self._execute_process(process_id, config)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Execution queue error: {e}")
+                
+    async def _execute_process(self, process_id: str, config: ExecutionConfig):
+        """Execute a process"""
+        # Get language runner
+        runner = self.language_runners[config.language]
+        
+        # Apply security sandbox if needed
+        if not config.debug:  # Don't sandbox debug sessions
+            config = self.sandbox.apply_restrictions(config)
+            
+        # Create process record
+        process = Process(
+            id=process_id,
+            pid=0,
+            config=config,
+            status='running',
+            started_at=datetime.now()
+        )
+        
+        self.processes[process_id] = process
+        
+        try:
+            if config.interactive:
+                # Create terminal for interactive execution
+                terminal = Terminal(process_id)
+                await terminal.start()
+                self.terminals[process_id] = terminal
+                process.terminal = terminal
+                
+                # Run in terminal
+                await runner.run_interactive(config, terminal, process)
+            else:
+                # Run non-interactive
+                result = await runner.run(config, process)
+                
+                # Update process
+                process.status = 'completed'
+                process.ended_at = datetime.now()
+                
+        except Exception as e:
+            process.status = 'error'
+            process.ended_at = datetime.now()
+            process.error_buffer.append(str(e))
+            
+    async def debug(self, config: ExecutionConfig) -> str:
+        """Start a debug session"""
+        config.debug = True
+        config.interactive = True
+        
+        # Create debugger
+        debugger_id = str(uuid.uuid4())
+        
+        if config.language == 'python':
+            debugger = PythonDebugger()
+        elif config.language in ['javascript', 'typescript']:
+            debugger = NodeDebugger()
+        else:
+            # Fallback to generic debugger
+            debugger = GenericDebugger()
+            
+        self.debuggers[debugger_id] = debugger
+        
+        # Start debug session
+        await debugger.start(config)
+        
+        return debugger_id
+        
+    async def kill_process(self, process_id: str) -> bool:
+        """Kill a running process"""
+        if process_id not in self.processes:
+            return False
+            
+        process = self.processes[process_id]
+        
+        if process.process and process.process.poll() is None:
+            try:
+                # Try graceful termination first
+                process.process.terminate()
+                await asyncio.sleep(0.5)
+                
+                # Force kill if still running
+                if process.process.poll() is None:
+                    process.process.kill()
+                    
+                process.status = 'killed'
+                process.ended_at = datetime.now()
+                return True
+                
+            except Exception as e:
+                print(f"Error killing process: {e}")
+                return False
+                
+        return False
+        
+    async def get_process_info(self, process_id: str) -> Optional[Dict]:
+        """Get information about a process"""
+        if process_id not in self.processes:
+            return None
+            
+        process = self.processes[process_id]
+        
+        info = {
+            'id': process.id,
+            'pid': process.pid,
+            'status': process.status,
+            'language': process.config.language,
+            'started_at': process.started_at.isoformat(),
+            'ended_at': process.ended_at.isoformat() if process.ended_at else None,
+            'output': '\n'.join(process.output_buffer[-100:]),  # Last 100 lines
+            'errors': '\n'.join(process.error_buffer[-100:])
+        }
+        
+        # Add resource usage if running
+        if process.status == 'running' and process.pid:
+            try:
+                proc = psutil.Process(process.pid)
+                info['cpu_percent'] = proc.cpu_percent()
+                info['memory_info'] = proc.memory_info()._asdict()
+            except:
+                pass
+                
+        return info
+        
+    async def list_processes(self) -> List[Dict]:
+        """List all processes"""
+        return [
+            await self.get_process_info(pid)
+            for pid in self.processes.keys()
+        ]
+        
+    def register_output_handler(self, process_id: str, handler: Callable):
+        """Register output handler for a process"""
+        self.output_handlers[process_id].append(handler)
+        
+    def _create_execution_result(self, process: Process) -> ExecutionResult:
+        """Create execution result from process"""
+        execution_time = (
+            (process.ended_at - process.started_at).total_seconds()
+            if process.ended_at else 0
+        )
+        
+        return ExecutionResult(
+            id=process.id,
+            status=process.status,
+            exit_code=process.process.returncode if process.process else -1,
+            stdout='\n'.join(process.output_buffer),
+            stderr='\n'.join(process.error_buffer),
+            execution_time=execution_time,
+            memory_usage=0,  # TODO: Get from resource monitor
+            cpu_usage=0  # TODO: Get from resource monitor
+        )
+
+
+# Language Runners
+
+class LanguageRunner(ABC):
+    """Abstract base class for language runners"""
+    
+    @abstractmethod
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        """Run code non-interactively"""
+        pass
+        
+    @abstractmethod
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        """Run code interactively in terminal"""
+        pass
+        
+    def prepare_environment(self, config: ExecutionConfig) -> Dict[str, str]:
+        """Prepare environment variables"""
+        env = os.environ.copy()
+        env.update(config.environment_variables)
+        return env
+
+
+class PythonRunner(LanguageRunner):
+    """Python code runner"""
+    
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        """Run Python code"""
+        # Create temporary file if needed
+        if config.file_path:
+            script_path = config.file_path
+        else:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+                f.write(config.code)
+                script_path = f.name
+                
+        try:
+            # Prepare command
+            cmd = [sys.executable, '-u', script_path]  # -u for unbuffered output
+            
+            # Create process
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE if config.stdin_data else None,
+                cwd=config.working_directory,
+                env=self.prepare_environment(config)
+            )
+            
+            process.process = proc
+            process.pid = proc.pid
+            
+            # Handle stdin if provided
+            stdin_data = config.stdin_data.encode() if config.stdin_data else None
+            
+            # Set timeout
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(stdin_data),
+                    timeout=config.timeout
+                )
+                
+                process.output_buffer = stdout.decode().splitlines()
+                process.error_buffer = stderr.decode().splitlines()
+                
+            except asyncio.TimeoutError:
+                proc.kill()
+                process.status = 'timeout'
+                
+        finally:
+            # Cleanup temp file
+            if not config.file_path and os.path.exists(script_path):
+                os.unlink(script_path)
+                
+        return self._create_result(process)
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        """Run Python interactively"""
+        # Use Python REPL or IPython if available
+        cmd = [sys.executable, '-i']
+        
+        if config.code:
+            # Execute initial code
+            cmd.extend(['-c', config.code])
+            
+        await terminal.spawn(cmd, env=self.prepare_environment(config))
+        process.pid = terminal.pid
+        
+    def _create_result(self, process: Process) -> ExecutionResult:
+        """Create execution result"""
+        return ExecutionResult(
+            id=process.id,
+            status=process.status,
+            exit_code=process.process.returncode if process.process else -1,
+            stdout='\n'.join(process.output_buffer),
+            stderr='\n'.join(process.error_buffer),
+            execution_time=0,
+            memory_usage=0,
+            cpu_usage=0
+        )
+
+
+class JavaScriptRunner(LanguageRunner):
+    """JavaScript code runner using Node.js"""
+    
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        """Run JavaScript code"""
+        # Check if Node.js is available
+        node_cmd = await self._find_node()
+        if not node_cmd:
+            process.status = 'error'
+            process.error_buffer.append('Node.js not found')
+            return self._create_result(process)
+            
+        # Create temporary file
+        if config.file_path:
+            script_path = config.file_path
+        else:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+                f.write(config.code)
+                script_path = f.name
+                
+        try:
+            # Prepare command
+            cmd = [node_cmd, script_path]
+            
+            # Create process
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE if config.stdin_data else None,
+                cwd=config.working_directory,
+                env=self.prepare_environment(config)
+            )
+            
+            process.process = proc
+            process.pid = proc.pid
+            
+            # Handle stdin
+            stdin_data = config.stdin_data.encode() if config.stdin_data else None
+            
+            # Execute with timeout
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(stdin_data),
+                    timeout=config.timeout
+                )
+                
+                process.output_buffer = stdout.decode().splitlines()
+                process.error_buffer = stderr.decode().splitlines()
+                
+            except asyncio.TimeoutError:
+                proc.kill()
+                process.status = 'timeout'
+                
+        finally:
+            # Cleanup
+            if not config.file_path and os.path.exists(script_path):
+                os.unlink(script_path)
+                
+        return self._create_result(process)
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        """Run Node.js REPL"""
+        node_cmd = await self._find_node()
+        if not node_cmd:
+            process.status = 'error'
+            return
+            
+        await terminal.spawn([node_cmd], env=self.prepare_environment(config))
+        process.pid = terminal.pid
+        
+        # Execute initial code if provided
+        if config.code:
+            await terminal.write(config.code + '\n')
+            
+    async def _find_node(self) -> Optional[str]:
+        """Find Node.js executable"""
+        for cmd in ['node', 'nodejs']:
+            if shutil.which(cmd):
+                return cmd
+        return None
+        
+    def _create_result(self, process: Process) -> ExecutionResult:
+        """Create execution result"""
+        return ExecutionResult(
+            id=process.id,
+            status=process.status,
+            exit_code=process.process.returncode if process.process else -1,
+            stdout='\n'.join(process.output_buffer),
+            stderr='\n'.join(process.error_buffer),
+            execution_time=0,
+            memory_usage=0,
+            cpu_usage=0
+        )
+
+
+class TypeScriptRunner(JavaScriptRunner):
+    """TypeScript runner (compiles to JS first)"""
+    
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        """Compile and run TypeScript"""
+        # Check if TypeScript compiler is available
+        tsc_cmd = shutil.which('tsc')
+        if not tsc_cmd:
+            # Try to run directly with ts-node if available
+            ts_node = shutil.which('ts-node')
+            if ts_node:
+                return await self._run_with_ts_node(config, process)
+            else:
+                process.status = 'error'
+                process.error_buffer.append('TypeScript compiler not found')
+                return self._create_result(process)
+                
+        # Compile TypeScript to JavaScript
+        if config.file_path:
+            ts_path = config.file_path
+        else:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.ts', delete=False) as f:
+                f.write(config.code)
+                ts_path = f.name
+                
+        js_path = ts_path.replace('.ts', '.js')
+        
+        try:
+            # Compile
+            compile_proc = await asyncio.create_subprocess_exec(
+                tsc_cmd, ts_path, '--outFile', js_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await compile_proc.communicate()
+            
+            if compile_proc.returncode != 0:
+                process.status = 'error'
+                process.error_buffer = stderr.decode().splitlines()
+                return self._create_result(process)
+                
+            # Run compiled JavaScript
+            config.file_path = js_path
+            return await super().run(config, process)
+            
+        finally:
+            # Cleanup
+            for path in [ts_path, js_path]:
+                if os.path.exists(path) and not config.file_path:
+                    os.unlink(path)
+                    
+    async def _run_with_ts_node(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        """Run TypeScript directly with ts-node"""
+        # Similar to JavaScript runner but with ts-node
+        pass
+
+
+class ShellRunner(LanguageRunner):
+    """Shell script runner"""
+    
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        """Run shell script"""
+        # Determine shell
+        shell = os.environ.get('SHELL', '/bin/bash')
+        
+        if config.file_path:
+            script_path = config.file_path
+        else:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
+                f.write(config.code)
+                script_path = f.name
+                os.chmod(script_path, 0o755)
+                
+        try:
+            # Run script
+            proc = await asyncio.create_subprocess_exec(
+                shell, script_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.PIPE if config.stdin_data else None,
+                cwd=config.working_directory,
+                env=self.prepare_environment(config)
+            )
+            
+            process.process = proc
+            process.pid = proc.pid
+            
+            # Execute
+            stdin_data = config.stdin_data.encode() if config.stdin_data else None
+            
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(stdin_data),
+                    timeout=config.timeout
+                )
+                
+                process.output_buffer = stdout.decode().splitlines()
+                process.error_buffer = stderr.decode().splitlines()
+                
+            except asyncio.TimeoutError:
+                proc.kill()
+                process.status = 'timeout'
+                
+        finally:
+            if not config.file_path and os.path.exists(script_path):
+                os.unlink(script_path)
+                
+        return self._create_result(process)
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        """Run interactive shell"""
+        shell = os.environ.get('SHELL', '/bin/bash')
+        await terminal.spawn([shell], env=self.prepare_environment(config))
+        process.pid = terminal.pid
+        
+        # Execute initial commands if provided
+        if config.code:
+            for line in config.code.splitlines():
+                await terminal.write(line + '\n')
+                
+    def _create_result(self, process: Process) -> ExecutionResult:
+        """Create execution result"""
+        return ExecutionResult(
+            id=process.id,
+            status=process.status,
+            exit_code=process.process.returncode if process.process else -1,
+            stdout='\n'.join(process.output_buffer),
+            stderr='\n'.join(process.error_buffer),
+            execution_time=0,
+            memory_usage=0,
+            cpu_usage=0
+        )
+
+
+# Stub implementations for other language runners
+class JavaRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # Java compilation and execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # JShell for interactive Java
+        pass
+
+
+class CppRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # C++ compilation and execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # No standard C++ REPL
+        pass
+
+
+class CRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # C compilation and execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # No standard C REPL
+        pass
+
+
+class GoRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # Go compilation and execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # Go playground or gore
+        pass
+
+
+class RustRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # Rust compilation and execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # Rust REPL (evcxr)
+        pass
+
+
+class RubyRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # Ruby execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # IRB for interactive Ruby
+        pass
+
+
+class PhpRunner(LanguageRunner):
+    async def run(self, config: ExecutionConfig, process: Process) -> ExecutionResult:
+        # PHP execution
+        pass
+        
+    async def run_interactive(self, config: ExecutionConfig, terminal: 'Terminal', process: Process):
+        # PHP interactive mode
+        pass
+
+
+# Terminal Management
+
+class Terminal:
+    """Pseudo-terminal for interactive execution"""
+    
+    def __init__(self, terminal_id: str):
+        self.id = terminal_id
+        self.master_fd = None
+        self.slave_fd = None
+        self.pid = None
+        self.process = None
+        self.output_handlers = []
+        self.input_queue = asyncio.Queue()
+        self.running = False
+        self._reader_task = None
+        self._writer_task = None
+        
+    async def start(self):
+        """Start the terminal"""
+        self.running = True
+        
+    async def spawn(self, cmd: List[str], env: Dict[str, str] = None):
+        """Spawn a process in the terminal"""
+        # Create pseudo-terminal
+        self.master_fd, self.slave_fd = pty.openpty()
+        
+        # Make non-blocking
+        fcntl.fcntl(self.master_fd, fcntl.F_SETFL, os.O_NONBLOCK)
+        
+        # Spawn process
+        self.process = subprocess.Popen(
+            cmd,
+            stdin=self.slave_fd,
+            stdout=self.slave_fd,
+            stderr=self.slave_fd,
+            env=env,
+            preexec_fn=os.setsid
+        )
+        
+        self.pid = self.process.pid
+        
+        # Start I/O tasks
+        self._reader_task = asyncio.create_task(self._read_output())
+        self._writer_task = asyncio.create_task(self._write_input())
+        
+    async def write(self, data: str):
+        """Write data to terminal"""
+        await self.input_queue.put(data.encode())
+        
+    async def resize(self, rows: int, cols: int):
+        """Resize terminal"""
+        if self.master_fd:
+            # Send TIOCSWINSZ ioctl
+            winsize = struct.pack('HHHH', rows, cols, 0, 0)
+            fcntl.ioctl(self.master_fd, termios.TIOCSWINSZ, winsize)
+            
+    def add_output_handler(self, handler: Callable):
+        """Add output handler"""
+        self.output_handlers.append(handler)
+        
+    async def _read_output(self):
+        """Read output from terminal"""
+        while self.running:
+            try:
+                # Check if data available
+                ready, _, _ = select.select([self.master_fd], [], [], 0.1)
+                
+                if ready:
+                    data = os.read(self.master_fd, 4096)
+                    if data:
+                        # Notify handlers
+                        for handler in self.output_handlers:
+                            await handler(data.decode('utf-8', errors='replace'))
+                            
+            except OSError:
+                break
+                
+            await asyncio.sleep(0.01)
+            
+    async def _write_input(self):
+        """Write input to terminal"""
+        while self.running:
+            try:
+                data = await asyncio.wait_for(self.input_queue.get(), timeout=0.1)
+                os.write(self.master_fd, data)
+            except asyncio.TimeoutError:
+                continue
+            except OSError:
+                break
+                
+    async def stop(self):
+        """Stop the terminal"""
+        self.running = False
+        
+        # Kill process
+        if self.process and self.process.poll() is None:
+            self.process.terminate()
+            await asyncio.sleep(0.5)
+            if self.process.poll() is None:
+                self.process.kill()
+                
+        # Close file descriptors
+        if self.master_fd:
+            os.close(self.master_fd)
+        if self.slave_fd:
+            os.close(self.slave_fd)
+            
+        # Cancel tasks
+        if self._reader_task:
+            self._reader_task.cancel()
+        if self._writer_task:
+            self._writer_task.cancel()
+
+
+# Debugging Support
+
+class Debugger(ABC):
+    """Abstract base class for debuggers"""
+    
+    @abstractmethod
+    async def start(self, config: ExecutionConfig):
+        """Start debug session"""
+        pass
+        
+    @abstractmethod
+    async def set_breakpoint(self, file: str, line: int):
+        """Set a breakpoint"""
+        pass
+        
+    @abstractmethod
+    async def remove_breakpoint(self, file: str, line: int):
+        """Remove a breakpoint"""
+        pass
+        
+    @abstractmethod
+    async def continue_execution(self):
+        """Continue execution"""
+        pass
+        
+    @abstractmethod
+    async def step_over(self):
+        """Step over"""
+        pass
+        
+    @abstractmethod
+    async def step_into(self):
+        """Step into"""
+        pass
+        
+    @abstractmethod
+    async def step_out(self):
+        """Step out"""
+        pass
+        
+    @abstractmethod
+    async def evaluate(self, expression: str) -> Any:
+        """Evaluate expression in current context"""
+        pass
+
+
+class PythonDebugger(Debugger):
+    """Python debugger using pdb"""
+    
+    def __init__(self):
+        self.pdb_process = None
+        self.breakpoints = set()
+        
+    async def start(self, config: ExecutionConfig):
+        """Start Python debugger"""
+        # Create debug script
+        debug_script = f"""
+import pdb
+import sys
+
+# Set breakpoints
+pdb.set_trace()
+
+# User code
+{config.code}
+"""
+        
+        # Start pdb process
+        self.pdb_process = await asyncio.create_subprocess_exec(
+            sys.executable, '-m', 'pdb', '-c', 'continue',
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        # Send script
+        self.pdb_process.stdin.write(debug_script.encode())
+        await self.pdb_process.stdin.drain()
+        
+    async def set_breakpoint(self, file: str, line: int):
+        """Set breakpoint"""
+        self.breakpoints.add((file, line))
+        if self.pdb_process:
+            cmd = f"b {file}:{line}\n"
+            self.pdb_process.stdin.write(cmd.encode())
+            await self.pdb_process.stdin.drain()
+            
+    async def remove_breakpoint(self, file: str, line: int):
+        """Remove breakpoint"""
+        self.breakpoints.discard((file, line))
+        # PDB doesn't have direct breakpoint removal
+        
+    async def continue_execution(self):
+        """Continue execution"""
+        if self.pdb_process:
+            self.pdb_process.stdin.write(b"c\n")
+            await self.pdb_process.stdin.drain()
+            
+    async def step_over(self):
+        """Step over"""
+        if self.pdb_process:
+            self.pdb_process.stdin.write(b"n\n")
+            await self.pdb_process.stdin.drain()
+            
+    async def step_into(self):
+        """Step into"""
+        if self.pdb_process:
+            self.pdb_process.stdin.write(b"s\n")
+            await self.pdb_process.stdin.drain()
+            
+    async def step_out(self):
+        """Step out"""
+        if self.pdb_process:
+            self.pdb_process.stdin.write(b"r\n")
+            await self.pdb_process.stdin.drain()
+            
+    async def evaluate(self, expression: str) -> Any:
+        """Evaluate expression"""
+        if self.pdb_process:
+            cmd = f"p {expression}\n"
+            self.pdb_process.stdin.write(cmd.encode())
+            await self.pdb_process.stdin.drain()
+            
+            # Read output
+            output = await self.pdb_process.stdout.readline()
+            return output.decode().strip()
+
+
+class NodeDebugger(Debugger):
+    """Node.js debugger"""
+    
+    async def start(self, config: ExecutionConfig):
+        # Use Node.js inspector protocol
+        pass
+        
+    # Implement other methods...
+
+
+class GenericDebugger(Debugger):
+    """Generic debugger fallback"""
+    
+    async def start(self, config: ExecutionConfig):
+        # Basic debugging with print statements
+        pass
+        
+    # Implement other methods...
+
+
+# Resource Monitoring
+
+class ResourceMonitor:
+    """Monitor resource usage of processes"""
+    
+    def __init__(self):
+        self.monitoring = {}
+        self.history = defaultdict(list)
+        self.max_history = 1000
+        
+    async def start(self):
+        """Start monitoring loop"""
+        while True:
+            try:
+                await self._collect_metrics()
+                await asyncio.sleep(1)  # Collect every second
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Resource monitoring error: {e}")
+                
+    async def _collect_metrics(self):
+        """Collect metrics for all monitored processes"""
+        for pid, process_id in list(self.monitoring.items()):
+            try:
+                proc = psutil.Process(pid)
+                
+                metrics = {
+                    'timestamp': datetime.now().isoformat(),
+                    'cpu_percent': proc.cpu_percent(),
+                    'memory_info': proc.memory_info()._asdict(),
+                    'io_counters': proc.io_counters()._asdict() if hasattr(proc, 'io_counters') else None,
+                    'num_threads': proc.num_threads(),
+                    'status': proc.status()
+                }
+                
+                self.history[process_id].append(metrics)
+                
+                # Limit history size
+                if len(self.history[process_id]) > self.max_history:
+                    self.history[process_id].pop(0)
+                    
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                # Process no longer exists
+                del self.monitoring[pid]
+                
+    def start_monitoring(self, pid: int, process_id: str):
+        """Start monitoring a process"""
+        self.monitoring[pid] = process_id
+        
+    def stop_monitoring(self, pid: int):
+        """Stop monitoring a process"""
+        if pid in self.monitoring:
+            del self.monitoring[pid]
+            
+    def get_metrics(self, process_id: str) -> List[Dict]:
+        """Get metrics history for a process"""
+        return self.history.get(process_id, [])
+
+
+# Security Sandbox
+
+class SecuritySandbox:
+    """Security sandbox for code execution"""
+    
+    def apply_restrictions(self, config: ExecutionConfig) -> ExecutionConfig:
+        """Apply security restrictions to execution config"""
+        # Restrict environment variables
+        restricted_env = config.environment_variables.copy()
+        
+        # Remove sensitive variables
+        sensitive_vars = ['AWS_SECRET_KEY', 'DATABASE_PASSWORD', 'API_KEY']
+        for var in sensitive_vars:
+            restricted_env.pop(var, None)
+            
+        # Set resource limits
+        if not config.memory_limit:
+            config.memory_limit = 512  # Default 512MB
+            
+        if not config.cpu_limit:
+            config.cpu_limit = 50  # Default 50% CPU
+            
+        if not config.timeout:
+            config.timeout = 30  # Default 30 seconds
+            
+        config.environment_variables = restricted_env
+        
+        return config
+
+
+# WebSocket handlers
+
+async def handle_executor_request(websocket, message: Dict):
+    """Handle executor requests from WebSocket"""
+    workspace_root = message.get('workspace_root', '.')
+    engine = ExecutorEngine(workspace_root)
+    
+    action = message.get('action')
+    
+    if action == 'execute':
+        config = ExecutionConfig(**message.get('config', {}))
+        result = await engine.execute(config)
+        await websocket.send(json.dumps({
+            'type': 'execution_result',
+            'result': asdict(result)
+        }))
+        
+    elif action == 'debug':
+        config = ExecutionConfig(**message.get('config', {}))
+        debugger_id = await engine.debug(config)
+        await websocket.send(json.dumps({
+            'type': 'debug_session_started',
+            'debugger_id': debugger_id
+        }))
+        
+    elif action == 'kill_process':
+        process_id = message.get('process_id')
+        success = await engine.kill_process(process_id)
+        await websocket.send(json.dumps({
+            'type': 'process_killed',
+            'success': success
+        }))
+        
+    elif action == 'list_processes':
+        processes = await engine.list_processes()
+        await websocket.send(json.dumps({
+            'type': 'process_list',
+            'processes': processes
+        }))
+        
+    elif action == 'terminal_input':
+        terminal_id = message.get('terminal_id')
+        data = message.get('data')
+        if terminal_id in engine.terminals:
+            await engine.terminals[terminal_id].write(data)
+            
+    elif action == 'terminal_resize':
+        terminal_id = message.get('terminal_id')
+        rows = message.get('rows')
+        cols = message.get('cols')
+        if terminal_id in engine.terminals:
+            await engine.terminals[terminal_id].resize(rows, cols)

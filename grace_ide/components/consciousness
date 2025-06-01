@@ -1,0 +1,1016 @@
+"""
+Grace_IDE Consciousness Component
+Provides intelligent code understanding, context awareness, and AI-assisted features
+"""
+
+import ast
+import json
+import asyncio
+import hashlib
+from datetime import datetime
+from typing import Dict, List, Optional, Set, Tuple, Any
+from dataclasses import dataclass, field
+from collections import defaultdict, deque
+from pathlib import Path
+import threading
+import re
+import tokenize
+import io
+from abc import ABC, abstractmethod
+
+
+@dataclass
+class CodeContext:
+    """Represents the context of code at a specific location"""
+    file_path: str
+    line_number: int
+    column: int
+    scope: str  # function, class, module
+    parent_scopes: List[str]
+    variables: Dict[str, Any]
+    imports: List[str]
+    function_calls: List[str]
+    class_hierarchy: List[str]
+    recent_edits: List[Dict]
+    semantic_type: str  # declaration, call, assignment, etc.
+
+
+@dataclass
+class Intent:
+    """Represents detected user intent"""
+    action: str  # write, refactor, debug, document, test
+    confidence: float
+    context: CodeContext
+    parameters: Dict[str, Any]
+    suggestions: List[str]
+
+
+@dataclass
+class CodePattern:
+    """Represents a detected code pattern"""
+    pattern_type: str  # anti-pattern, best-practice, optimization
+    severity: str  # info, warning, error
+    location: Tuple[int, int]  # start_line, end_line
+    description: str
+    suggestion: str
+    auto_fixable: bool
+    fix_function: Optional[callable] = None
+
+
+class ConsciousnessEngine:
+    """Main consciousness engine for Grace_IDE"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+        self.context_map: Dict[str, CodeContext] = {}
+        self.pattern_library = PatternLibrary()
+        self.intent_detector = IntentDetector()
+        self.code_analyzer = CodeAnalyzer()
+        self.suggestion_engine = SuggestionEngine()
+        self.learning_module = LearningModule()
+        
+        # State tracking
+        self.user_actions = deque(maxlen=1000)
+        self.code_changes = deque(maxlen=500)
+        self.active_contexts: Dict[str, CodeContext] = {}
+        self.session_insights: List[Dict] = []
+        
+        # Background tasks
+        self._analysis_queue = asyncio.Queue()
+        self._running = False
+        self._analysis_task = None
+    
+    async def start(self):
+        """Start the consciousness engine"""
+        self._running = True
+        self._analysis_task = asyncio.create_task(self._analysis_loop())
+        await self.learning_module.load_models()
+        print("Consciousness engine started")
+    
+    async def stop(self):
+        """Stop the consciousness engine"""
+        self._running = False
+        if self._analysis_task:
+            await self._analysis_task
+        await self.learning_module.save_models()
+        print("Consciousness engine stopped")
+    
+    async def _analysis_loop(self):
+        """Background analysis loop"""
+        while self._running:
+            try:
+                task = await asyncio.wait_for(
+                    self._analysis_queue.get(), 
+                    timeout=1.0
+                )
+                await self._process_analysis_task(task)
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                print(f"Analysis error: {e}")
+    
+    async def analyze_file(self, file_path: str, content: str) -> Dict:
+        """Analyze a file and return insights"""
+        try:
+            # Parse the code
+            if file_path.endswith('.py'):
+                tree = ast.parse(content)
+                analyzer = PythonAnalyzer()
+            elif file_path.endswith(('.js', '.ts')):
+                analyzer = JavaScriptAnalyzer()
+            else:
+                analyzer = GenericAnalyzer()
+            
+            # Perform analysis
+            context = await analyzer.analyze(file_path, content)
+            patterns = await self.pattern_library.detect_patterns(content, file_path)
+            suggestions = await self.suggestion_engine.generate_suggestions(context, patterns)
+            
+            # Store context
+            self.context_map[file_path] = context
+            
+            # Learn from the code
+            await self.learning_module.learn_from_code(file_path, content, context)
+            
+            return {
+                'context': context,
+                'patterns': patterns,
+                'suggestions': suggestions,
+                'metrics': analyzer.get_metrics()
+            }
+            
+        except Exception as e:
+            return {'error': str(e)}
+    
+    async def get_completions(self, file_path: str, position: Dict) -> List[Dict]:
+        """Get intelligent code completions"""
+        context = self._get_context_at_position(file_path, position)
+        if not context:
+            return []
+        
+        # Get base completions
+        completions = await self.code_analyzer.get_completions(context)
+        
+        # Enhance with learning
+        enhanced = await self.learning_module.enhance_completions(
+            completions, context
+        )
+        
+        # Rank by relevance
+        ranked = self._rank_completions(enhanced, context)
+        
+        return ranked[:10]  # Top 10 completions
+    
+    async def detect_intent(self, 
+                          file_path: str, 
+                          cursor_position: Dict,
+                          recent_text: str) -> Intent:
+        """Detect user's coding intent"""
+        context = self._get_context_at_position(file_path, cursor_position)
+        
+        # Analyze recent actions
+        recent_actions = list(self.user_actions)[-10:]
+        
+        # Detect intent
+        intent = await self.intent_detector.detect(
+            context, recent_text, recent_actions
+        )
+        
+        # Generate targeted suggestions
+        intent.suggestions = await self.suggestion_engine.generate_for_intent(
+            intent, context
+        )
+        
+        return intent
+    
+    async def suggest_refactoring(self, file_path: str, selection: Dict) -> List[Dict]:
+        """Suggest refactoring options for selected code"""
+        content = await self._read_file(file_path)
+        selected_text = self._extract_selection(content, selection)
+        
+        context = self.context_map.get(file_path)
+        if not context:
+            context = await self.analyze_file(file_path, content)
+        
+        refactorings = []
+        
+        # Check for common refactoring opportunities
+        if self._can_extract_method(selected_text, context):
+            refactorings.append({
+                'type': 'extract_method',
+                'title': 'Extract Method',
+                'description': 'Extract selection into a new method',
+                'preview': self._preview_extract_method(selected_text, context)
+            })
+        
+        if self._can_extract_variable(selected_text, context):
+            refactorings.append({
+                'type': 'extract_variable',
+                'title': 'Extract Variable',
+                'description': 'Extract expression into a variable',
+                'preview': self._preview_extract_variable(selected_text, context)
+            })
+        
+        if self._has_duplication(selected_text, content):
+            refactorings.append({
+                'type': 'remove_duplication',
+                'title': 'Remove Duplication',
+                'description': 'Found similar code blocks',
+                'preview': self._preview_remove_duplication(selected_text, content)
+            })
+        
+        return refactorings
+    
+    async def explain_code(self, file_path: str, selection: Dict) -> Dict:
+        """Generate explanation for selected code"""
+        content = await self._read_file(file_path)
+        selected_text = self._extract_selection(content, selection)
+        
+        context = self.context_map.get(file_path)
+        
+        explanation = {
+            'summary': self._generate_summary(selected_text),
+            'purpose': self._analyze_purpose(selected_text, context),
+            'flow': self._analyze_control_flow(selected_text),
+            'dependencies': self._analyze_dependencies(selected_text, context),
+            'complexity': self._calculate_complexity(selected_text),
+            'suggestions': []
+        }
+        
+        # Add improvement suggestions
+        patterns = await self.pattern_library.detect_patterns(selected_text, file_path)
+        if patterns:
+            explanation['suggestions'] = [
+                {
+                    'type': p.pattern_type,
+                    'description': p.description,
+                    'suggestion': p.suggestion
+                }
+                for p in patterns
+            ]
+        
+        return explanation
+    
+    async def generate_documentation(self, file_path: str, selection: Dict) -> str:
+        """Generate documentation for selected code"""
+        content = await self._read_file(file_path)
+        selected_text = self._extract_selection(content, selection)
+        
+        context = self.context_map.get(file_path)
+        
+        if file_path.endswith('.py'):
+            return self._generate_python_docs(selected_text, context)
+        elif file_path.endswith(('.js', '.ts')):
+            return self._generate_javascript_docs(selected_text, context)
+        else:
+            return self._generate_generic_docs(selected_text, context)
+    
+    async def find_similar_code(self, file_path: str, selection: Dict) -> List[Dict]:
+        """Find similar code patterns in the workspace"""
+        content = await self._read_file(file_path)
+        selected_text = self._extract_selection(content, selection)
+        
+        # Create signature for the selected code
+        signature = self._create_code_signature(selected_text)
+        
+        similar_blocks = []
+        
+        # Search through workspace
+        for path in self.workspace_root.rglob('*'):
+            if path.is_file() and self._is_code_file(path):
+                try:
+                    file_content = await self._read_file(str(path))
+                    matches = self._find_similar_blocks(
+                        selected_text, signature, file_content, str(path)
+                    )
+                    similar_blocks.extend(matches)
+                except:
+                    continue
+        
+        # Rank by similarity
+        similar_blocks.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        return similar_blocks[:10]
+    
+    def record_action(self, action: Dict):
+        """Record user action for learning"""
+        action['timestamp'] = datetime.now().isoformat()
+        self.user_actions.append(action)
+        
+        # Trigger background learning
+        asyncio.create_task(
+            self.learning_module.learn_from_action(action)
+        )
+    
+    def record_change(self, change: Dict):
+        """Record code change for analysis"""
+        change['timestamp'] = datetime.now().isoformat()
+        self.code_changes.append(change)
+        
+        # Queue for analysis
+        self._analysis_queue.put_nowait({
+            'type': 'change_analysis',
+            'change': change
+        })
+    
+    # Helper methods
+    
+    def _get_context_at_position(self, file_path: str, position: Dict) -> Optional[CodeContext]:
+        """Get code context at specific position"""
+        context = self.context_map.get(file_path)
+        if not context:
+            return None
+        
+        # TODO: Refine context to specific position
+        return context
+    
+    async def _read_file(self, file_path: str) -> str:
+        """Read file content"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception:
+            return ""
+    
+    def _extract_selection(self, content: str, selection: Dict) -> str:
+        """Extract selected text from content"""
+        lines = content.splitlines()
+        start_line = selection['start']['line']
+        end_line = selection['end']['line']
+        
+        if start_line == end_line:
+            line = lines[start_line] if start_line < len(lines) else ""
+            return line[selection['start']['column']:selection['end']['column']]
+        
+        selected_lines = []
+        for i in range(start_line, min(end_line + 1, len(lines))):
+            if i == start_line:
+                selected_lines.append(lines[i][selection['start']['column']:])
+            elif i == end_line:
+                selected_lines.append(lines[i][:selection['end']['column']])
+            else:
+                selected_lines.append(lines[i])
+        
+        return '\n'.join(selected_lines)
+    
+    def _create_code_signature(self, code: str) -> str:
+        """Create a signature for code similarity matching"""
+        # Remove comments and whitespace
+        cleaned = re.sub(r'#.*$', '', code, flags=re.MULTILINE)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        # Create hash
+        return hashlib.md5(cleaned.encode()).hexdigest()
+    
+    def _is_code_file(self, path: Path) -> bool:
+        """Check if file is a code file"""
+        code_extensions = {
+            '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c',
+            '.h', '.hpp', '.cs', '.rb', '.go', '.rs', '.php', '.swift'
+        }
+        return path.suffix.lower() in code_extensions
+
+
+class PatternLibrary:
+    """Library of code patterns and anti-patterns"""
+    
+    def __init__(self):
+        self.patterns = self._load_patterns()
+    
+    def _load_patterns(self) -> List[Dict]:
+        """Load pattern definitions"""
+        return [
+            {
+                'name': 'long_function',
+                'type': 'anti-pattern',
+                'detector': self._detect_long_function,
+                'severity': 'warning',
+                'description': 'Function is too long',
+                'suggestion': 'Consider breaking this function into smaller functions'
+            },
+            {
+                'name': 'deep_nesting',
+                'type': 'anti-pattern',
+                'detector': self._detect_deep_nesting,
+                'severity': 'warning',
+                'description': 'Deep nesting detected',
+                'suggestion': 'Consider early returns or extracting nested logic'
+            },
+            {
+                'name': 'duplicate_code',
+                'type': 'anti-pattern',
+                'detector': self._detect_duplication,
+                'severity': 'info',
+                'description': 'Similar code block detected',
+                'suggestion': 'Consider extracting common functionality'
+            }
+        ]
+    
+    async def detect_patterns(self, code: str, file_path: str) -> List[CodePattern]:
+        """Detect patterns in code"""
+        detected = []
+        
+        for pattern_def in self.patterns:
+            matches = pattern_def['detector'](code)
+            for match in matches:
+                detected.append(CodePattern(
+                    pattern_type=pattern_def['type'],
+                    severity=pattern_def['severity'],
+                    location=match['location'],
+                    description=pattern_def['description'],
+                    suggestion=pattern_def['suggestion'],
+                    auto_fixable=match.get('auto_fixable', False),
+                    fix_function=match.get('fix_function')
+                ))
+        
+        return detected
+    
+    def _detect_long_function(self, code: str) -> List[Dict]:
+        """Detect functions that are too long"""
+        matches = []
+        lines = code.splitlines()
+        
+        # Simple detection for Python
+        in_function = False
+        function_start = 0
+        indent_level = 0
+        
+        for i, line in enumerate(lines):
+            if re.match(r'^(\s*)def\s+\w+', line):
+                if in_function:
+                    # Check previous function
+                    if i - function_start > 50:
+                        matches.append({
+                            'location': (function_start, i - 1),
+                            'length': i - function_start
+                        })
+                in_function = True
+                function_start = i
+                indent_level = len(re.match(r'^(\s*)', line).group(1))
+            elif in_function and line.strip() and len(re.match(r'^(\s*)', line).group(1)) <= indent_level:
+                # Function ended
+                if i - function_start > 50:
+                    matches.append({
+                        'location': (function_start, i - 1),
+                        'length': i - function_start
+                    })
+                in_function = False
+        
+        return matches
+    
+    def _detect_deep_nesting(self, code: str) -> List[Dict]:
+        """Detect deep nesting in code"""
+        matches = []
+        lines = code.splitlines()
+        
+        for i, line in enumerate(lines):
+            indent = len(line) - len(line.lstrip())
+            if indent > 16:  # More than 4 levels (4 spaces per level)
+                matches.append({
+                    'location': (i, i),
+                    'depth': indent // 4
+                })
+        
+        return matches
+    
+    def _detect_duplication(self, code: str) -> List[Dict]:
+        """Detect duplicate code blocks"""
+        # Simplified duplication detection
+        matches = []
+        lines = code.splitlines()
+        
+        # Look for similar blocks (3+ lines)
+        for i in range(len(lines) - 3):
+            block1 = '\n'.join(lines[i:i+3])
+            if len(block1.strip()) < 20:  # Skip short blocks
+                continue
+                
+            for j in range(i + 3, len(lines) - 3):
+                block2 = '\n'.join(lines[j:j+3])
+                if self._similarity(block1, block2) > 0.8:
+                    matches.append({
+                        'location': (i, i + 2),
+                        'duplicate_location': (j, j + 2)
+                    })
+        
+        return matches
+    
+    def _similarity(self, str1: str, str2: str) -> float:
+        """Calculate similarity between two strings"""
+        # Simple character-based similarity
+        if not str1 or not str2:
+            return 0.0
+        
+        common = sum(1 for a, b in zip(str1, str2) if a == b)
+        return common / max(len(str1), len(str2))
+
+
+class IntentDetector:
+    """Detects user intent from actions and context"""
+    
+    def __init__(self):
+        self.intent_patterns = self._load_intent_patterns()
+    
+    def _load_intent_patterns(self) -> Dict:
+        """Load intent detection patterns"""
+        return {
+            'write': {
+                'keywords': ['def', 'class', 'function', 'const', 'let', 'var'],
+                'actions': ['typing', 'inserting'],
+                'confidence_boost': 0.2
+            },
+            'refactor': {
+                'keywords': ['rename', 'extract', 'move', 'inline'],
+                'actions': ['selecting', 'cutting', 'pasting'],
+                'confidence_boost': 0.3
+            },
+            'debug': {
+                'keywords': ['print', 'console', 'debug', 'breakpoint', 'error'],
+                'actions': ['inspecting', 'hovering'],
+                'confidence_boost': 0.4
+            },
+            'document': {
+                'keywords': ['"""', '/**', '#', '//'],
+                'actions': ['commenting'],
+                'confidence_boost': 0.5
+            },
+            'test': {
+                'keywords': ['test', 'assert', 'expect', 'describe', 'it'],
+                'actions': ['creating_test_file'],
+                'confidence_boost': 0.4
+            }
+        }
+    
+    async def detect(self, 
+                    context: CodeContext,
+                    recent_text: str,
+                    recent_actions: List[Dict]) -> Intent:
+        """Detect user intent"""
+        scores = defaultdict(float)
+        
+        # Analyze recent text
+        for intent, pattern in self.intent_patterns.items():
+            for keyword in pattern['keywords']:
+                if keyword in recent_text.lower():
+                    scores[intent] += 0.3
+        
+        # Analyze recent actions
+        for action in recent_actions:
+            action_type = action.get('type', '')
+            for intent, pattern in self.intent_patterns.items():
+                if action_type in pattern['actions']:
+                    scores[intent] += pattern['confidence_boost']
+        
+        # Analyze context
+        if context:
+            if context.semantic_type == 'declaration':
+                scores['write'] += 0.2
+            elif context.semantic_type == 'call':
+                scores['debug'] += 0.1
+        
+        # Find highest scoring intent
+        if not scores:
+            intent_type = 'write'
+            confidence = 0.5
+        else:
+            intent_type = max(scores, key=scores.get)
+            confidence = min(scores[intent_type], 1.0)
+        
+        return Intent(
+            action=intent_type,
+            confidence=confidence,
+            context=context,
+            parameters={},
+            suggestions=[]
+        )
+
+
+class SuggestionEngine:
+    """Generates intelligent code suggestions"""
+    
+    async def generate_suggestions(self, 
+                                 context: CodeContext,
+                                 patterns: List[CodePattern]) -> List[Dict]:
+        """Generate suggestions based on context and patterns"""
+        suggestions = []
+        
+        # Pattern-based suggestions
+        for pattern in patterns:
+            suggestions.append({
+                'type': 'pattern',
+                'priority': self._get_pattern_priority(pattern),
+                'title': f'Fix: {pattern.description}',
+                'description': pattern.suggestion,
+                'action': {
+                    'type': 'quick_fix',
+                    'pattern': pattern
+                }
+            })
+        
+        # Context-based suggestions
+        if context:
+            # Suggest imports
+            missing_imports = self._detect_missing_imports(context)
+            for imp in missing_imports:
+                suggestions.append({
+                    'type': 'import',
+                    'priority': 'high',
+                    'title': f'Import {imp}',
+                    'description': f'Add missing import for {imp}',
+                    'action': {
+                        'type': 'add_import',
+                        'module': imp
+                    }
+                })
+            
+            # Suggest documentation
+            if not self._has_documentation(context):
+                suggestions.append({
+                    'type': 'documentation',
+                    'priority': 'medium',
+                    'title': 'Add documentation',
+                    'description': 'Add docstring to this function',
+                    'action': {
+                        'type': 'add_docstring'
+                    }
+                })
+        
+        # Sort by priority
+        suggestions.sort(key=lambda x: self._priority_value(x['priority']), reverse=True)
+        
+        return suggestions
+    
+    async def generate_for_intent(self, 
+                                intent: Intent,
+                                context: CodeContext) -> List[str]:
+        """Generate suggestions specific to detected intent"""
+        suggestions = []
+        
+        if intent.action == 'write':
+            # Code templates
+            suggestions.extend([
+                'Create a new function',
+                'Define a class',
+                'Add error handling',
+                'Implement interface'
+            ])
+        
+        elif intent.action == 'refactor':
+            suggestions.extend([
+                'Extract method',
+                'Rename variable',
+                'Inline variable',
+                'Convert to comprehension'
+            ])
+        
+        elif intent.action == 'debug':
+            suggestions.extend([
+                'Add breakpoint',
+                'Insert print statement',
+                'Add logging',
+                'Check variable value'
+            ])
+        
+        elif intent.action == 'document':
+            suggestions.extend([
+                'Generate docstring',
+                'Add inline comments',
+                'Create README section',
+                'Document parameters'
+            ])
+        
+        elif intent.action == 'test':
+            suggestions.extend([
+                'Create unit test',
+                'Add test case',
+                'Generate test template',
+                'Mock dependencies'
+            ])
+        
+        return suggestions
+    
+    def _get_pattern_priority(self, pattern: CodePattern) -> str:
+        """Get priority for pattern-based suggestion"""
+        severity_priority = {
+            'error': 'high',
+            'warning': 'medium',
+            'info': 'low'
+        }
+        return severity_priority.get(pattern.severity, 'low')
+    
+    def _priority_value(self, priority: str) -> int:
+        """Convert priority to numeric value"""
+        values = {
+            'critical': 4,
+            'high': 3,
+            'medium': 2,
+            'low': 1
+        }
+        return values.get(priority, 0)
+    
+    def _detect_missing_imports(self, context: CodeContext) -> List[str]:
+        """Detect potentially missing imports"""
+        # Simplified detection
+        used_names = set(context.function_calls)
+        imported_names = set(name.split('.')[-1] for name in context.imports)
+        
+        # Common modules that might be missing
+        common_modules = {
+            'os', 'sys', 'json', 'datetime', 're', 'math',
+            'numpy', 'pandas', 'requests', 'flask', 'django'
+        }
+        
+        missing = []
+        for name in used_names - imported_names:
+            if name in common_modules:
+                missing.append(name)
+        
+        return missing
+    
+    def _has_documentation(self, context: CodeContext) -> bool:
+        """Check if context has documentation"""
+        # Simplified check
+        return '"""' in str(context.variables.get('__doc__', ''))
+
+
+class LearningModule:
+    """Machine learning module for improving suggestions"""
+    
+    def __init__(self):
+        self.model_path = Path.home() / '.grace_ide' / 'models'
+        self.model_path.mkdir(parents=True, exist_ok=True)
+        self.usage_patterns = defaultdict(int)
+        self.completion_history = deque(maxlen=1000)
+        self.model = None
+    
+    async def load_models(self):
+        """Load saved models"""
+        try:
+            pattern_file = self.model_path / 'usage_patterns.json'
+            if pattern_file.exists():
+                with open(pattern_file, 'r') as f:
+                    self.usage_patterns = defaultdict(int, json.load(f))
+        except Exception as e:
+            print(f"Failed to load models: {e}")
+    
+    async def save_models(self):
+        """Save models to disk"""
+        try:
+            pattern_file = self.model_path / 'usage_patterns.json'
+            with open(pattern_file, 'w') as f:
+                json.dump(dict(self.usage_patterns), f)
+        except Exception as e:
+            print(f"Failed to save models: {e}")
+    
+    async def learn_from_code(self, file_path: str, content: str, context: CodeContext):
+        """Learn patterns from code"""
+        # Track common patterns
+        for func in context.function_calls:
+            self.usage_patterns[f'function:{func}'] += 1
+        
+        for imp in context.imports:
+            self.usage_patterns[f'import:{imp}'] += 1
+    
+    async def learn_from_action(self, action: Dict):
+        """Learn from user actions"""
+        action_type = action.get('type')
+        if action_type == 'completion_accepted':
+            completion = action.get('completion')
+            self.completion_history.append(completion)
+            self.usage_patterns[f'completion:{completion}'] += 1
+    
+    async def enhance_completions(self, 
+                                completions: List[Dict],
+                                context: CodeContext) -> List[Dict]:
+        """Enhance completions with learned patterns"""
+        # Score completions based on usage
+        for completion in completions:
+            key = f"completion:{completion['label']}"
+            usage_score = self.usage_patterns.get(key, 0)
+            completion['score'] = completion.get('score', 1.0) + (usage_score * 0.1)
+        
+        # Sort by enhanced score
+        completions.sort(key=lambda x: x['score'], reverse=True)
+        
+        return completions
+
+
+class CodeAnalyzer:
+    """Analyzes code structure and provides completions"""
+    
+    async def get_completions(self, context: CodeContext) -> List[Dict]:
+        """Get code completions for context"""
+        completions = []
+        
+        # Add variable completions
+        for var_name, var_type in context.variables.items():
+            completions.append({
+                'label': var_name,
+                'kind': 'variable',
+                'detail': str(var_type),
+                'score': 1.0
+            })
+        
+        # Add function completions
+        for func in context.function_calls:
+            completions.append({
+                'label': func,
+                'kind': 'function',
+                'detail': 'function',
+                'score': 0.9
+            })
+        
+        # Add keyword completions based on context
+        if context.scope == 'module':
+            keywords = ['def', 'class', 'import', 'from']
+        elif context.scope == 'class':
+            keywords = ['def', 'self', 'super', '@property']
+        else:
+            keywords = ['if', 'else', 'for', 'while', 'return']
+        
+        for keyword in keywords:
+            completions.append({
+                'label': keyword,
+                'kind': 'keyword',
+                'detail': 'keyword',
+                'score': 0.8
+            })
+        
+        return completions
+
+
+# Language-specific analyzers
+
+class PythonAnalyzer:
+    """Python-specific code analyzer"""
+    
+    async def analyze(self, file_path: str, content: str) -> CodeContext:
+        """Analyze Python code"""
+        try:
+            tree = ast.parse(content)
+            
+            # Extract information
+            imports = []
+            functions = []
+            classes = []
+            variables = {}
+            
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imports.extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    module = node.module or ''
+                    imports.extend(f"{module}.{alias.name}" for alias in node.names)
+                elif isinstance(node, ast.FunctionDef):
+                    functions.append(node.name)
+                elif isinstance(node, ast.ClassDef):
+                    classes.append(node.name)
+                elif isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            variables[target.id] = type(node.value).__name__
+            
+            return CodeContext(
+                file_path=file_path,
+                line_number=0,
+                column=0,
+                scope='module',
+                parent_scopes=[],
+                variables=variables,
+                imports=imports,
+                function_calls=functions,
+                class_hierarchy=classes,
+                recent_edits=[],
+                semantic_type='module'
+            )
+            
+        except Exception as e:
+            return CodeContext(
+                file_path=file_path,
+                line_number=0,
+                column=0,
+                scope='unknown',
+                parent_scopes=[],
+                variables={},
+                imports=[],
+                function_calls=[],
+                class_hierarchy=[],
+                recent_edits=[],
+                semantic_type='error'
+            )
+    
+    def get_metrics(self) -> Dict:
+        """Get code metrics"""
+        return {
+            'complexity': 0,  # TODO: Calculate cyclomatic complexity
+            'maintainability': 0,  # TODO: Calculate maintainability index
+            'test_coverage': 0  # TODO: Integrate with coverage tools
+        }
+
+
+class JavaScriptAnalyzer:
+    """JavaScript/TypeScript code analyzer"""
+    
+    async def analyze(self, file_path: str, content: str) -> CodeContext:
+        """Analyze JavaScript code"""
+        # Simplified JS analysis using regex
+        imports = re.findall(r'import\s+.*?from\s+[\'"](.+?)[\'"]', content)
+        functions = re.findall(r'function\s+(\w+)|const\s+(\w+)\s*=\s*\(.*?\)\s*=>', content)
+        functions = [f[0] or f[1] for f in functions]
+        
+        return CodeContext(
+            file_path=file_path,
+            line_number=0,
+            column=0,
+            scope='module',
+            parent_scopes=[],
+            variables={},
+            imports=imports,
+            function_calls=functions,
+            class_hierarchy=[],
+            recent_edits=[],
+            semantic_type='module'
+        )
+    
+    def get_metrics(self) -> Dict:
+        """Get code metrics"""
+        return {'complexity': 0}
+
+
+class GenericAnalyzer:
+    """Generic code analyzer for unsupported languages"""
+    
+    async def analyze(self, file_path: str, content: str) -> CodeContext:
+        """Basic analysis for any text file"""
+        return CodeContext(
+            file_path=file_path,
+            line_number=0,
+            column=0,
+            scope='file',
+            parent_scopes=[],
+            variables={},
+            imports=[],
+            function_calls=[],
+            class_hierarchy=[],
+            recent_edits=[],
+            semantic_type='generic'
+        )
+    
+    def get_metrics(self) -> Dict:
+        """Get basic metrics"""
+        return {'lines': 0}
+
+
+# WebSocket handlers for consciousness features
+
+async def handle_consciousness_request(websocket, message: Dict):
+    """Handle consciousness-related requests"""
+    workspace_root = message.get('workspace_root', '.')
+    engine = ConsciousnessEngine(workspace_root)
+    
+    action = message.get('action')
+    
+    if action == 'analyze_file':
+        file_path = message.get('file_path')
+        content = message.get('content')
+        result = await engine.analyze_file(file_path, content)
+        
+    elif action == 'get_completions':
+        file_path = message.get('file_path')
+        position = message.get('position')
+        result = await engine.get_completions(file_path, position)
+        
+    elif action == 'detect_intent':
+        file_path = message.get('file_path')
+        cursor_position = message.get('cursor_position')
+        recent_text = message.get('recent_text')
+        result = await engine.detect_intent(file_path, cursor_position, recent_text)
+        
+    elif action == 'suggest_refactoring':
+        file_path = message.get('file_path')
+        selection = message.get('selection')
+        result = await engine.suggest_refactoring(file_path, selection)
+        
+    elif action == 'explain_code':
+        file_path = message.get('file_path')
+        selection = message.get('selection')
+        result = await engine.explain_code(file_path, selection)
+        
+    elif action == 'generate_documentation':
+        file_path = message.get('file_path')
+        selection = message.get('selection')
+        result = await engine.generate_documentation(file_path, selection)
+        
+    elif action == 'find_similar_code':
+        file_path = message.get('file_path')
+        selection = message.get('selection')
+        result = await engine.find_similar_code(file_path, selection)
+        
+    else:
+        result = {'error': f'Unknown action: {action}'}
+    
+    await websocket.send(json.dumps({
+        'type': 'consciousness_result',
+        'action': action,
+        'result': result
+    }))

@@ -1,0 +1,1494 @@
+"""
+Grace_IDE Security Component
+Provides code security analysis, vulnerability detection, and protection mechanisms
+"""
+
+import os
+import re
+import ast
+import json
+import hashlib
+import asyncio
+import subprocess
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple, Any, Union
+from dataclasses import dataclass, field, asdict
+from collections import defaultdict
+from enum import Enum
+import yaml
+import toml
+from abc import ABC, abstractmethod
+import aiohttp
+import semver
+import bandit
+from safety import check as safety_check
+import secrets
+import hmac
+import base64
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+
+class SecurityLevel(Enum):
+    """Security severity levels"""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFO = "info"
+
+
+class VulnerabilityType(Enum):
+    """Types of vulnerabilities"""
+    SQL_INJECTION = "sql_injection"
+    XSS = "cross_site_scripting"
+    COMMAND_INJECTION = "command_injection"
+    PATH_TRAVERSAL = "path_traversal"
+    INSECURE_DESERIALIZATION = "insecure_deserialization"
+    HARDCODED_SECRET = "hardcoded_secret"
+    WEAK_CRYPTO = "weak_cryptography"
+    INSECURE_RANDOM = "insecure_random"
+    XXE = "xml_external_entity"
+    SSRF = "server_side_request_forgery"
+    DEPENDENCY_VULNERABILITY = "dependency_vulnerability"
+    PERMISSION_ISSUE = "permission_issue"
+    RACE_CONDITION = "race_condition"
+    BUFFER_OVERFLOW = "buffer_overflow"
+    CODE_INJECTION = "code_injection"
+
+
+@dataclass
+class Vulnerability:
+    """Represents a security vulnerability"""
+    id: str
+    type: VulnerabilityType
+    severity: SecurityLevel
+    file_path: str
+    line_start: int
+    line_end: int
+    column_start: Optional[int] = None
+    column_end: Optional[int] = None
+    message: str = ""
+    description: str = ""
+    recommendation: str = ""
+    cwe_id: Optional[str] = None
+    owasp_category: Optional[str] = None
+    cvss_score: Optional[float] = None
+    references: List[str] = field(default_factory=list)
+    code_snippet: Optional[str] = None
+    confidence: float = 1.0
+    false_positive: bool = False
+    
+    
+@dataclass
+class SecurityPolicy:
+    """Security policy configuration"""
+    name: str
+    enabled: bool = True
+    severity_threshold: SecurityLevel = SecurityLevel.LOW
+    ignore_patterns: List[str] = field(default_factory=list)
+    custom_rules: List[Dict] = field(default_factory=list)
+    max_file_size: int = 10 * 1024 * 1024  # 10MB
+    scan_dependencies: bool = True
+    scan_secrets: bool = True
+    scan_permissions: bool = True
+    auto_fix: bool = False
+    quarantine_malicious: bool = True
+    
+
+@dataclass
+class ScanResult:
+    """Result of security scan"""
+    scan_id: str
+    timestamp: datetime
+    file_count: int
+    vulnerabilities: List[Vulnerability]
+    scan_time: float
+    policy_used: str
+    errors: List[str] = field(default_factory=list)
+    statistics: Dict[str, int] = field(default_factory=dict)
+
+
+class SecurityEngine:
+    """Main security engine for Grace_IDE"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+        self.security_dir = self.workspace_root / '.grace' / 'security'
+        self.security_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Security components
+        self.scanner = VulnerabilityScanner()
+        self.secret_scanner = SecretScanner()
+        self.dependency_checker = DependencyChecker()
+        self.permission_analyzer = PermissionAnalyzer()
+        self.crypto_analyzer = CryptoAnalyzer()
+        self.sanitizer = CodeSanitizer()
+        self.quarantine = QuarantineManager(self.security_dir / 'quarantine')
+        
+        # Policies
+        self.policies: Dict[str, SecurityPolicy] = {}
+        self.active_policy = "default"
+        self._load_policies()
+        
+        # Scan history
+        self.scan_history: List[ScanResult] = []
+        self.vulnerability_db: Dict[str, Vulnerability] = {}
+        
+        # Real-time monitoring
+        self.monitor_enabled = False
+        self.monitor_task = None
+        self.file_hashes: Dict[str, str] = {}
+        
+        # Security vault for secrets
+        self.vault = SecretVault(self.security_dir / 'vault')
+        
+    async def start(self):
+        """Start security engine"""
+        await self.vault.initialize()
+        await self.dependency_checker.update_vulnerability_db()
+        
+        if self.monitor_enabled:
+            self.monitor_task = asyncio.create_task(self._monitor_loop())
+            
+        print("Security engine started")
+        
+    async def stop(self):
+        """Stop security engine"""
+        if self.monitor_task:
+            self.monitor_task.cancel()
+            
+        await self.vault.close()
+        print("Security engine stopped")
+        
+    async def scan_file(self, file_path: str, content: Optional[str] = None) -> List[Vulnerability]:
+        """Scan a single file for vulnerabilities"""
+        if not content:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except Exception as e:
+                return []
+                
+        vulnerabilities = []
+        policy = self.policies.get(self.active_policy, self._get_default_policy())
+        
+        # Check file size
+        if len(content) > policy.max_file_size:
+            return []
+            
+        # Language detection
+        language = self._detect_language(file_path)
+        
+        # Run scanners based on policy
+        if policy.enabled:
+            # Code vulnerability scan
+            vulns = await self.scanner.scan(file_path, content, language)
+            vulnerabilities.extend(vulns)
+            
+            # Secret scanning
+            if policy.scan_secrets:
+                secrets = await self.secret_scanner.scan(file_path, content)
+                vulnerabilities.extend(secrets)
+                
+            # Crypto analysis
+            crypto_issues = await self.crypto_analyzer.analyze(file_path, content, language)
+            vulnerabilities.extend(crypto_issues)
+            
+        # Filter by severity threshold
+        vulnerabilities = [
+            v for v in vulnerabilities
+            if self._severity_value(v.severity) >= self._severity_value(policy.severity_threshold)
+        ]
+        
+        # Check ignore patterns
+        vulnerabilities = [
+            v for v in vulnerabilities
+            if not any(re.match(pattern, v.type.value) for pattern in policy.ignore_patterns)
+        ]
+        
+        # Update vulnerability database
+        for vuln in vulnerabilities:
+            self.vulnerability_db[vuln.id] = vuln
+            
+        return vulnerabilities
+        
+    async def scan_workspace(self, 
+                           progress_callback: Optional[callable] = None) -> ScanResult:
+        """Scan entire workspace for vulnerabilities"""
+        scan_id = hashlib.sha256(
+            f"scan_{datetime.now().isoformat()}".encode()
+        ).hexdigest()[:16]
+        
+        start_time = datetime.now()
+        all_vulnerabilities = []
+        file_count = 0
+        errors = []
+        
+        policy = self.policies.get(self.active_policy, self._get_default_policy())
+        
+        # Scan code files
+        for file_path in self._get_code_files():
+            try:
+                if progress_callback:
+                    await progress_callback(f"Scanning {file_path}")
+                    
+                vulns = await self.scan_file(str(file_path))
+                all_vulnerabilities.extend(vulns)
+                file_count += 1
+                
+            except Exception as e:
+                errors.append(f"Error scanning {file_path}: {str(e)}")
+                
+        # Scan dependencies
+        if policy.scan_dependencies:
+            dep_vulns = await self.dependency_checker.check_dependencies(
+                str(self.workspace_root)
+            )
+            all_vulnerabilities.extend(dep_vulns)
+            
+        # Scan permissions
+        if policy.scan_permissions:
+            perm_issues = await self.permission_analyzer.analyze_permissions(
+                str(self.workspace_root)
+            )
+            all_vulnerabilities.extend(perm_issues)
+            
+        # Calculate statistics
+        statistics = self._calculate_statistics(all_vulnerabilities)
+        
+        # Create scan result
+        scan_time = (datetime.now() - start_time).total_seconds()
+        result = ScanResult(
+            scan_id=scan_id,
+            timestamp=start_time,
+            file_count=file_count,
+            vulnerabilities=all_vulnerabilities,
+            scan_time=scan_time,
+            policy_used=self.active_policy,
+            errors=errors,
+            statistics=statistics
+        )
+        
+        # Save to history
+        self.scan_history.append(result)
+        
+        # Auto-fix if enabled
+        if policy.auto_fix:
+            await self._auto_fix_vulnerabilities(all_vulnerabilities)
+            
+        # Quarantine malicious files if enabled
+        if policy.quarantine_malicious:
+            await self._quarantine_malicious_files(all_vulnerabilities)
+            
+        return result
+        
+    async def fix_vulnerability(self, vulnerability_id: str) -> bool:
+        """Attempt to fix a vulnerability"""
+        if vulnerability_id not in self.vulnerability_db:
+            return False
+            
+        vuln = self.vulnerability_db[vulnerability_id]
+        
+        # Get fix function for vulnerability type
+        fix_func = self.sanitizer.get_fix_function(vuln.type)
+        if not fix_func:
+            return False
+            
+        try:
+            # Read file
+            with open(vuln.file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Apply fix
+            fixed_content = await fix_func(content, vuln)
+            
+            # Backup original
+            backup_path = self.security_dir / 'backups' / f"{vulnerability_id}.backup"
+            backup_path.parent.mkdir(exist_ok=True)
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+                
+            # Write fixed content
+            with open(vuln.file_path, 'w', encoding='utf-8') as f:
+                f.write(fixed_content)
+                
+            # Mark as fixed
+            vuln.false_positive = True
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error fixing vulnerability: {e}")
+            return False
+            
+    async def validate_input(self, input_data: str, input_type: str) -> Tuple[bool, Optional[str]]:
+        """Validate and sanitize user input"""
+        return await self.sanitizer.validate_input(input_data, input_type)
+        
+    async def encrypt_sensitive_data(self, data: str, key: Optional[str] = None) -> str:
+        """Encrypt sensitive data"""
+        return await self.vault.encrypt(data, key)
+        
+    async def decrypt_sensitive_data(self, encrypted_data: str, key: Optional[str] = None) -> str:
+        """Decrypt sensitive data"""
+        return await self.vault.decrypt(encrypted_data, key)
+        
+    async def check_dependency(self, package: str, version: str) -> List[Vulnerability]:
+        """Check a specific dependency for vulnerabilities"""
+        return await self.dependency_checker.check_package(package, version)
+        
+    async def generate_security_report(self, scan_id: Optional[str] = None) -> Dict:
+        """Generate security report"""
+        if scan_id:
+            scan_result = next((s for s in self.scan_history if s.scan_id == scan_id), None)
+            if not scan_result:
+                return {}
+        else:
+            # Use latest scan
+            if not self.scan_history:
+                return {}
+            scan_result = self.scan_history[-1]
+            
+        report = {
+            'scan_id': scan_result.scan_id,
+            'timestamp': scan_result.timestamp.isoformat(),
+            'summary': {
+                'total_vulnerabilities': len(scan_result.vulnerabilities),
+                'critical': scan_result.statistics.get('critical', 0),
+                'high': scan_result.statistics.get('high', 0),
+                'medium': scan_result.statistics.get('medium', 0),
+                'low': scan_result.statistics.get('low', 0),
+                'files_scanned': scan_result.file_count,
+                'scan_time': scan_result.scan_time
+            },
+            'vulnerabilities_by_type': self._group_vulnerabilities_by_type(
+                scan_result.vulnerabilities
+            ),
+            'vulnerabilities_by_file': self._group_vulnerabilities_by_file(
+                scan_result.vulnerabilities
+            ),
+            'top_issues': self._get_top_issues(scan_result.vulnerabilities, 10),
+            'recommendations': self._generate_recommendations(scan_result.vulnerabilities)
+        }
+        
+        return report
+        
+    async def monitor_file_changes(self, file_path: str):
+        """Monitor file for security changes"""
+        # Calculate file hash
+        try:
+            with open(file_path, 'rb') as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+                
+            # Check if file changed
+            if file_path in self.file_hashes:
+                if self.file_hashes[file_path] != file_hash:
+                    # File changed, rescan
+                    await self.scan_file(file_path)
+                    
+            self.file_hashes[file_path] = file_hash
+            
+        except Exception as e:
+            print(f"Error monitoring file {file_path}: {e}")
+            
+    def set_policy(self, policy_name: str):
+        """Set active security policy"""
+        if policy_name in self.policies:
+            self.active_policy = policy_name
+            
+    def add_policy(self, policy: SecurityPolicy):
+        """Add a security policy"""
+        self.policies[policy.name] = policy
+        self._save_policies()
+        
+    def mark_false_positive(self, vulnerability_id: str):
+        """Mark vulnerability as false positive"""
+        if vulnerability_id in self.vulnerability_db:
+            self.vulnerability_db[vulnerability_id].false_positive = True
+            
+    # Helper methods
+    
+    def _load_policies(self):
+        """Load security policies"""
+        policy_file = self.security_dir / 'policies.json'
+        
+        if policy_file.exists():
+            with open(policy_file, 'r') as f:
+                data = json.load(f)
+                for name, policy_data in data.items():
+                    self.policies[name] = SecurityPolicy(**policy_data)
+        else:
+            # Create default policy
+            self.policies['default'] = self._get_default_policy()
+            self._save_policies()
+            
+    def _save_policies(self):
+        """Save security policies"""
+        policy_file = self.security_dir / 'policies.json'
+        
+        data = {
+            name: asdict(policy)
+            for name, policy in self.policies.items()
+        }
+        
+        with open(policy_file, 'w') as f:
+            json.dump(data, f, indent=2)
+            
+    def _get_default_policy(self) -> SecurityPolicy:
+        """Get default security policy"""
+        return SecurityPolicy(
+            name="default",
+            enabled=True,
+            severity_threshold=SecurityLevel.LOW,
+            scan_dependencies=True,
+            scan_secrets=True,
+            scan_permissions=True
+        )
+        
+    def _detect_language(self, file_path: str) -> str:
+        """Detect programming language from file"""
+        ext_map = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.c': 'c',
+            '.cs': 'csharp',
+            '.go': 'go',
+            '.rs': 'rust',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.swift': 'swift',
+            '.kt': 'kotlin',
+            '.scala': 'scala',
+            '.r': 'r',
+            '.sql': 'sql',
+            '.sh': 'shell',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.json': 'json',
+            '.xml': 'xml',
+            '.html': 'html',
+            '.htm': 'html'
+        }
+        
+        ext = Path(file_path).suffix.lower()
+        return ext_map.get(ext, 'unknown')
+        
+    def _get_code_files(self) -> List[Path]:
+        """Get all code files in workspace"""
+        code_extensions = {
+            '.py', '.js', '.ts', '.java', '.cpp', '.c', '.cs',
+            '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala',
+            '.r', '.sql', '.sh', '.yaml', '.yml', '.json', '.xml',
+            '.html', '.htm', '.jsx', '.tsx', '.vue'
+        }
+        
+        code_files = []
+        
+        for file_path in self.workspace_root.rglob('*'):
+            if file_path.is_file() and file_path.suffix.lower() in code_extensions:
+                # Skip common ignore patterns
+                if any(part.startswith('.') for part in file_path.parts):
+                    continue
+                if 'node_modules' in file_path.parts:
+                    continue
+                if '__pycache__' in file_path.parts:
+                    continue
+                    
+                code_files.append(file_path)
+                
+        return code_files
+        
+    def _severity_value(self, severity: SecurityLevel) -> int:
+        """Convert severity to numeric value"""
+        values = {
+            SecurityLevel.CRITICAL: 5,
+            SecurityLevel.HIGH: 4,
+            SecurityLevel.MEDIUM: 3,
+            SecurityLevel.LOW: 2,
+            SecurityLevel.INFO: 1
+        }
+        return values.get(severity, 0)
+        
+    def _calculate_statistics(self, vulnerabilities: List[Vulnerability]) -> Dict[str, int]:
+        """Calculate vulnerability statistics"""
+        stats = defaultdict(int)
+        
+        for vuln in vulnerabilities:
+            if not vuln.false_positive:
+                stats[vuln.severity.value] += 1
+                stats[vuln.type.value] += 1
+                stats['total'] += 1
+                
+        return dict(stats)
+        
+    def _group_vulnerabilities_by_type(self, 
+                                     vulnerabilities: List[Vulnerability]) -> Dict[str, List[Dict]]:
+        """Group vulnerabilities by type"""
+        grouped = defaultdict(list)
+        
+        for vuln in vulnerabilities:
+            if not vuln.false_positive:
+                grouped[vuln.type.value].append({
+                    'id': vuln.id,
+                    'severity': vuln.severity.value,
+                    'file': vuln.file_path,
+                    'line': vuln.line_start,
+                    'message': vuln.message
+                })
+                
+        return dict(grouped)
+        
+    def _group_vulnerabilities_by_file(self, 
+                                     vulnerabilities: List[Vulnerability]) -> Dict[str, List[Dict]]:
+        """Group vulnerabilities by file"""
+        grouped = defaultdict(list)
+        
+        for vuln in vulnerabilities:
+            if not vuln.false_positive:
+                grouped[vuln.file_path].append({
+                    'id': vuln.id,
+                    'type': vuln.type.value,
+                    'severity': vuln.severity.value,
+                    'line': vuln.line_start,
+                    'message': vuln.message
+                })
+                
+        return dict(grouped)
+        
+    def _get_top_issues(self, vulnerabilities: List[Vulnerability], limit: int) -> List[Dict]:
+        """Get top security issues"""
+        # Sort by severity and confidence
+        sorted_vulns = sorted(
+            [v for v in vulnerabilities if not v.false_positive],
+            key=lambda v: (self._severity_value(v.severity), v.confidence),
+            reverse=True
+        )
+        
+        top_issues = []
+        for vuln in sorted_vulns[:limit]:
+            top_issues.append({
+                'id': vuln.id,
+                'type': vuln.type.value,
+                'severity': vuln.severity.value,
+                'file': vuln.file_path,
+                'line': vuln.line_start,
+                'message': vuln.message,
+                'recommendation': vuln.recommendation
+            })
+            
+        return top_issues
+        
+    def _generate_recommendations(self, vulnerabilities: List[Vulnerability]) -> List[str]:
+        """Generate security recommendations"""
+        recommendations = set()
+        
+        vuln_types = set(v.type for v in vulnerabilities if not v.false_positive)
+        
+        if VulnerabilityType.SQL_INJECTION in vuln_types:
+            recommendations.add("Use parameterized queries or prepared statements")
+            
+        if VulnerabilityType.XSS in vuln_types:
+            recommendations.add("Sanitize all user input and encode output")
+            
+        if VulnerabilityType.HARDCODED_SECRET in vuln_types:
+            recommendations.add("Use environment variables or secure vaults for secrets")
+            
+        if VulnerabilityType.WEAK_CRYPTO in vuln_types:
+            recommendations.add("Use strong cryptographic algorithms and key sizes")
+            
+        if VulnerabilityType.DEPENDENCY_VULNERABILITY in vuln_types:
+            recommendations.add("Update vulnerable dependencies to patched versions")
+            
+        # General recommendations
+        if len(vulnerabilities) > 10:
+            recommendations.add("Consider implementing a security review process")
+            
+        severity_counts = defaultdict(int)
+        for vuln in vulnerabilities:
+            if not vuln.false_positive:
+                severity_counts[vuln.severity] += 1
+                
+        if severity_counts[SecurityLevel.CRITICAL] > 0:
+            recommendations.add("Address critical vulnerabilities immediately")
+            
+        return list(recommendations)
+        
+    async def _auto_fix_vulnerabilities(self, vulnerabilities: List[Vulnerability]):
+        """Auto-fix vulnerabilities where possible"""
+        for vuln in vulnerabilities:
+            if vuln.type in [
+                VulnerabilityType.HARDCODED_SECRET,
+                VulnerabilityType.INSECURE_RANDOM,
+                VulnerabilityType.WEAK_CRYPTO
+            ]:
+                await self.fix_vulnerability(vuln.id)
+                
+    async def _quarantine_malicious_files(self, vulnerabilities: List[Vulnerability]):
+        """Quarantine files with critical vulnerabilities"""
+        quarantined_files = set()
+        
+        for vuln in vulnerabilities:
+            if vuln.severity == SecurityLevel.CRITICAL and vuln.confidence > 0.8:
+                if vuln.file_path not in quarantined_files:
+                    await self.quarantine.quarantine_file(vuln.file_path)
+                    quarantined_files.add(vuln.file_path)
+                    
+    async def _monitor_loop(self):
+        """Real-time monitoring loop"""
+        while True:
+            try:
+                # Monitor all code files
+                for file_path in self._get_code_files():
+                    await self.monitor_file_changes(str(file_path))
+                    
+                await asyncio.sleep(5)  # Check every 5 seconds
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Monitoring error: {e}")
+
+
+class VulnerabilityScanner:
+    """Scans code for security vulnerabilities"""
+    
+    def __init__(self):
+        self.rules = self._load_rules()
+        
+    def _load_rules(self) -> Dict[str, List[Dict]]:
+        """Load vulnerability detection rules"""
+        return {
+            'python': [
+                {
+                    'type': VulnerabilityType.SQL_INJECTION,
+                    'pattern': r'(execute|executemany)\s*\(\s*["\'].*%[s|d].*["\'].*%',
+                    'message': 'Potential SQL injection vulnerability',
+                    'severity': SecurityLevel.HIGH
+                },
+                {
+                    'type': VulnerabilityType.COMMAND_INJECTION,
+                    'pattern': r'(os\.system|subprocess\.call|subprocess\.run)\s*\([^)]*\+[^)]*\)',
+                    'message': 'Potential command injection vulnerability',
+                    'severity': SecurityLevel.HIGH
+                },
+                {
+                    'type': VulnerabilityType.CODE_INJECTION,
+                    'pattern': r'(eval|exec)\s*\([^)]*input[^)]*\)',
+                    'message': 'Potential code injection vulnerability',
+                    'severity': SecurityLevel.CRITICAL
+                },
+                {
+                    'type': VulnerabilityType.PATH_TRAVERSAL,
+                    'pattern': r'open\s*\([^)]*\.\.[^)]*\)',
+                    'message': 'Potential path traversal vulnerability',
+                    'severity': SecurityLevel.MEDIUM
+                },
+                {
+                    'type': VulnerabilityType.INSECURE_DESERIALIZATION,
+                    'pattern': r'pickle\.loads?\s*\([^)]*\)',
+                    'message': 'Insecure deserialization using pickle',
+                    'severity': SecurityLevel.HIGH
+                }
+            ],
+            'javascript': [
+                {
+                    'type': VulnerabilityType.XSS,
+                    'pattern': r'innerHTML\s*=\s*[^;]*\+',
+                    'message': 'Potential XSS vulnerability through innerHTML',
+                    'severity': SecurityLevel.HIGH
+                },
+                {
+                    'type': VulnerabilityType.CODE_INJECTION,
+                    'pattern': r'eval\s*\([^)]*\)',
+                    'message': 'Use of eval() is dangerous',
+                    'severity': SecurityLevel.HIGH
+                },
+                {
+                    'type': VulnerabilityType.SQL_INJECTION,
+                    'pattern': r'query\s*\([^)]*\+[^)]*\)',
+                    'message': 'Potential SQL injection in query',
+                    'severity': SecurityLevel.HIGH
+                }
+            ]
+        }
+        
+    async def scan(self, file_path: str, content: str, language: str) -> List[Vulnerability]:
+        """Scan code for vulnerabilities"""
+        vulnerabilities = []
+        
+        if language == 'python':
+            # Use bandit for Python
+            vulnerabilities.extend(await self._scan_with_bandit(file_path, content))
+            
+        # Apply custom rules
+        if language in self.rules:
+            for rule in self.rules[language]:
+                matches = re.finditer(rule['pattern'], content, re.MULTILINE)
+                
+                for match in matches:
+                    line_start = content[:match.start()].count('\n') + 1
+                    
+                    vuln = Vulnerability(
+                        id=hashlib.sha256(
+                            f"{file_path}:{line_start}:{rule['type'].value}".encode()
+                        ).hexdigest()[:16],
+                        type=rule['type'],
+                        severity=rule['severity'],
+                        file_path=file_path,
+                        line_start=line_start,
+                        line_end=line_start,
+                        message=rule['message'],
+                        code_snippet=self._get_code_snippet(content, line_start)
+                    )
+                    
+                    vulnerabilities.append(vuln)
+                    
+        return vulnerabilities
+        
+    async def _scan_with_bandit(self, file_path: str, content: str) -> List[Vulnerability]:
+        """Scan Python code with bandit"""
+        vulnerabilities = []
+        
+        try:
+            # Run bandit programmatically
+            from bandit.core import manager
+            
+            b_mgr = manager.BanditManager(None, 'file')
+            b_mgr.discover_files([file_path])
+            b_mgr.run_tests()
+            
+            for issue in b_mgr.get_issue_list():
+                vuln = Vulnerability(
+                    id=hashlib.sha256(
+                        f"{file_path}:{issue.lineno}:{issue.test_id}".encode()
+                    ).hexdigest()[:16],
+                    type=self._map_bandit_test_to_type(issue.test_id),
+                    severity=self._map_bandit_severity(issue.severity),
+                    file_path=file_path,
+                    line_start=issue.lineno,
+                    line_end=issue.lineno,
+                    message=issue.issue_text,
+                    confidence=issue.confidence / 3.0,  # Normalize to 0-1
+                    cwe_id=issue.test.get('cwe', {}).get('id')
+                )
+                
+                vulnerabilities.append(vuln)
+                
+        except Exception as e:
+            print(f"Bandit scan error: {e}")
+            
+        return vulnerabilities
+        
+    def _map_bandit_test_to_type(self, test_id: str) -> VulnerabilityType:
+        """Map bandit test ID to vulnerability type"""
+        mapping = {
+            'B201': VulnerabilityType.CODE_INJECTION,  # flask_debug_true
+            'B301': VulnerabilityType.INSECURE_DESERIALIZATION,  # pickle
+            'B302': VulnerabilityType.INSECURE_DESERIALIZATION,  # marshal
+            'B303': VulnerabilityType.WEAK_CRYPTO,  # md5
+            'B304': VulnerabilityType.WEAK_CRYPTO,  # des
+            'B305': VulnerabilityType.WEAK_CRYPTO,  # cipher
+            'B306': VulnerabilityType.INSECURE_DESERIALIZATION,  # mktemp_q
+            'B307': VulnerabilityType.CODE_INJECTION,  # eval
+            'B308': VulnerabilityType.XXE,  # mark_safe
+            'B309': VulnerabilityType.XSS,  # httpsconnection
+            'B310': VulnerabilityType.PATH_TRAVERSAL,  # urllib_urlopen
+            'B311': VulnerabilityType.INSECURE_RANDOM,  # random
+            'B601': VulnerabilityType.COMMAND_INJECTION,  # paramiko_calls
+            'B602': VulnerabilityType.COMMAND_INJECTION,  # subprocess_popen_with_shell_equals_true
+            'B603': VulnerabilityType.COMMAND_INJECTION,  # subprocess_without_shell_equals_true
+            'B604': VulnerabilityType.COMMAND_INJECTION,  # any_other_function_with_shell_equals_true
+            'B605': VulnerabilityType.COMMAND_INJECTION,  # start_process_with_a_shell
+            'B606': VulnerabilityType.COMMAND_INJECTION,  # start_process_with_no_shell
+            'B607': VulnerabilityType.COMMAND_INJECTION,  # start_process_with_partial_path
+            'B608': VulnerabilityType.SQL_INJECTION,  # hardcoded_sql_expressions
+        }
+        
+        return mapping.get(test_id, VulnerabilityType.CODE_INJECTION)
+        
+    def _map_bandit_severity(self, severity: str) -> SecurityLevel:
+        """Map bandit severity to security level"""
+        mapping = {
+            'UNDEFINED': SecurityLevel.INFO,
+            'LOW': SecurityLevel.LOW,
+            'MEDIUM': SecurityLevel.MEDIUM,
+            'HIGH': SecurityLevel.HIGH
+        }
+        
+        return mapping.get(severity.upper(), SecurityLevel.MEDIUM)
+        
+    def _get_code_snippet(self, content: str, line_number: int, context: int = 3) -> str:
+        """Get code snippet around vulnerability"""
+        lines = content.splitlines()
+        
+        start = max(0, line_number - context - 1)
+        end = min(len(lines), line_number + context)
+        
+        snippet_lines = []
+        for i in range(start, end):
+            prefix = '>' if i == line_number - 1 else ' '
+            snippet_lines.append(f"{prefix} {i+1:4d} | {lines[i]}")
+            
+        return '\n'.join(snippet_lines)
+
+
+class SecretScanner:
+    """Scans for hardcoded secrets and sensitive data"""
+    
+    def __init__(self):
+        self.patterns = self._load_patterns()
+        
+    def _load_patterns(self) -> List[Dict]:
+        """Load secret detection patterns"""
+        return [
+            {
+                'name': 'AWS Access Key',
+                'pattern': r'AKIA[0-9A-Z]{16}',
+                'severity': SecurityLevel.CRITICAL
+            },
+            {
+                'name': 'AWS Secret Key',
+                'pattern': r'[0-9a-zA-Z/+=]{40}',
+                'severity': SecurityLevel.CRITICAL,
+                'context': r'(aws|secret).*key'
+            },
+            {
+                'name': 'API Key',
+                'pattern': r'["\']?api[_-]?key["\']?\s*[:=]\s*["\'][0-9a-zA-Z]{16,}["\']',
+                'severity': SecurityLevel.HIGH
+            },
+            {
+                'name': 'Private Key',
+                'pattern': r'-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----',
+                'severity': SecurityLevel.CRITICAL
+            },
+            {
+                'name': 'GitHub Token',
+                'pattern': r'ghp_[0-9a-zA-Z]{36}',
+                'severity': SecurityLevel.CRITICAL
+            },
+            {
+                'name': 'Generic Secret',
+                'pattern': r'["\']?(password|passwd|pwd|secret|token)["\']?\s*[:=]\s*["\'][^"\']{8,}["\']',
+                'severity': SecurityLevel.HIGH
+            },
+            {
+                'name': 'JWT Token',
+                'pattern': r'eyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+',
+                'severity': SecurityLevel.MEDIUM
+            },
+            {
+                'name': 'Database URL',
+                'pattern': r'(postgres|mysql|mongodb):\/\/[^:]+:[^@]+@[^/]+',
+                'severity': SecurityLevel.HIGH
+            }
+        ]
+        
+    async def scan(self, file_path: str, content: str) -> List[Vulnerability]:
+        """Scan for secrets"""
+        vulnerabilities = []
+        
+        for pattern_info in self.patterns:
+            pattern = pattern_info['pattern']
+            
+            # Check context if specified
+            if 'context' in pattern_info:
+                context_pattern = pattern_info['context']
+                if not re.search(context_pattern, content, re.IGNORECASE):
+                    continue
+                    
+            matches = re.finditer(pattern, content, re.MULTILINE | re.IGNORECASE)
+            
+            for match in matches:
+                line_start = content[:match.start()].count('\n') + 1
+                
+                # Check if it's in a comment or test file
+                if self._is_false_positive(file_path, content, match):
+                    continue
+                    
+                vuln = Vulnerability(
+                    id=hashlib.sha256(
+                        f"{file_path}:{line_start}:secret:{pattern_info['name']}".encode()
+                    ).hexdigest()[:16],
+                    type=VulnerabilityType.HARDCODED_SECRET,
+                    severity=pattern_info['severity'],
+                    file_path=file_path,
+                    line_start=line_start,
+                    line_end=line_start,
+                    message=f"Hardcoded {pattern_info['name']} detected",
+                    description=f"Found potential {pattern_info['name']} in code",
+                    recommendation="Remove hardcoded secrets and use environment variables or secure vaults"
+                )
+                
+                vulnerabilities.append(vuln)
+                
+        return vulnerabilities
+        
+    def _is_false_positive(self, file_path: str, content: str, match) -> bool:
+        """Check if secret detection is a false positive"""
+        # Check if in test file
+        if 'test' in file_path.lower():
+            return True
+            
+        # Check if in comment
+        line_start = content[:match.start()].rfind('\n') + 1
+        line = content[line_start:content.find('\n', match.start())]
+        
+        comment_patterns = [
+            r'^\s*#',  # Python comment
+            r'^\s*//',  # JavaScript comment
+            r'^\s*/\*',  # Multi-line comment start
+            r'^\s*\*',  # Multi-line comment continuation
+        ]
+        
+        for pattern in comment_patterns:
+            if re.match(pattern, line):
+                return True
+                
+        # Check if it's an example or placeholder
+        secret_text = match.group(0).lower()
+        if any(word in secret_text for word in ['example', 'placeholder', 'dummy', 'test']):
+            return True
+            
+        return False
+
+
+class DependencyChecker:
+    """Checks dependencies for known vulnerabilities"""
+    
+    def __init__(self):
+        self.vulnerability_db = {}
+        self.last_update = None
+        
+    async def update_vulnerability_db(self):
+        """Update vulnerability database"""
+        # In a real implementation, this would fetch from NVD, OSV, etc.
+        self.last_update = datetime.now()
+        
+    async def check_dependencies(self, project_path: str) -> List[Vulnerability]:
+        """Check project dependencies for vulnerabilities"""
+        vulnerabilities = []
+        
+        # Check Python dependencies
+        requirements_files = [
+            'requirements.txt', 'requirements.in', 'Pipfile', 'pyproject.toml'
+        ]
+        
+        for req_file in requirements_files:
+            file_path = Path(project_path) / req_file
+            if file_path.exists():
+                vulns = await self._check_python_dependencies(str(file_path))
+                vulnerabilities.extend(vulns)
+                
+        # Check Node.js dependencies
+        package_file = Path(project_path) / 'package.json'
+        if package_file.exists():
+            vulns = await self._check_node_dependencies(str(package_file))
+            vulnerabilities.extend(vulns)
+            
+        return vulnerabilities
+        
+    async def check_package(self, package: str, version: str) -> List[Vulnerability]:
+        """Check specific package for vulnerabilities"""
+        # Simplified check - in reality would query vulnerability databases
+        vulnerabilities = []
+        
+        # Example known vulnerable packages
+        vulnerable_packages = {
+            'requests': {'2.5.0': 'CVE-2018-18074'},
+            'django': {'1.11.0': 'CVE-2019-19844'},
+            'flask': {'0.12.0': 'CVE-2018-1000656'}
+        }
+        
+        if package in vulnerable_packages:
+            if version in vulnerable_packages[package]:
+                cve = vulnerable_packages[package][version]
+                
+                vuln = Vulnerability(
+                    id=hashlib.sha256(f"{package}:{version}:{cve}".encode()).hexdigest()[:16],
+                    type=VulnerabilityType.DEPENDENCY_VULNERABILITY,
+                    severity=SecurityLevel.HIGH,
+                    file_path="dependencies",
+                    line_start=0,
+                    line_end=0,
+                    message=f"Vulnerable dependency: {package} {version}",
+                    description=f"Known vulnerability {cve} in {package} {version}",
+                    recommendation=f"Update {package} to a patched version",
+                    cwe_id=cve
+                )
+                
+                vulnerabilities.append(vuln)
+                
+        return vulnerabilities
+        
+    async def _check_python_dependencies(self, requirements_file: str) -> List[Vulnerability]:
+        """Check Python dependencies using safety"""
+        vulnerabilities = []
+        
+        try:
+            # Use safety to check dependencies
+            with open(requirements_file, 'r') as f:
+                packages = []
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        # Parse package and version
+                        match = re.match(r'([^=<>]+)([=<>]+)(.+)', line)
+                        if match:
+                            package = match.group(1)
+                            version = match.group(3)
+                            packages.append((package, version))
+                            
+            for package, version in packages:
+                vulns = await self.check_package(package, version)
+                vulnerabilities.extend(vulns)
+                
+        except Exception as e:
+            print(f"Error checking Python dependencies: {e}")
+            
+        return vulnerabilities
+        
+    async def _check_node_dependencies(self, package_json: str) -> List[Vulnerability]:
+        """Check Node.js dependencies"""
+        vulnerabilities = []
+        
+        try:
+            with open(package_json, 'r') as f:
+                data = json.load(f)
+                
+            all_deps = {}
+            all_deps.update(data.get('dependencies', {}))
+            all_deps.update(data.get('devDependencies', {}))
+            
+            for package, version in all_deps.items():
+                # Clean version string
+                version = re.sub(r'^[^0-9]*', '', version)
+                vulns = await self.check_package(package, version)
+                vulnerabilities.extend(vulns)
+                
+        except Exception as e:
+            print(f"Error checking Node dependencies: {e}")
+            
+        return vulnerabilities
+
+
+class PermissionAnalyzer:
+    """Analyzes file and code permissions"""
+    
+    async def analyze_permissions(self, project_path: str) -> List[Vulnerability]:
+        """Analyze permissions in project"""
+        vulnerabilities = []
+        
+        # Check file permissions
+        for file_path in Path(project_path).rglob('*'):
+            if file_path.is_file():
+                vulns = self._check_file_permissions(file_path)
+                vulnerabilities.extend(vulns)
+                
+        # Check code permissions (simplified)
+        # In reality, would analyze permission usage in code
+        
+        return vulnerabilities
+        
+    def _check_file_permissions(self, file_path: Path) -> List[Vulnerability]:
+        """Check file permissions for security issues"""
+        vulnerabilities = []
+        
+        try:
+            stat_info = file_path.stat()
+            mode = stat_info.st_mode
+            
+            # Check for world-writable files
+            if mode & 0o002:
+                vuln = Vulnerability(
+                    id=hashlib.sha256(f"{file_path}:world-writable".encode()).hexdigest()[:16],
+                    type=VulnerabilityType.PERMISSION_ISSUE,
+                    severity=SecurityLevel.MEDIUM,
+                    file_path=str(file_path),
+                    line_start=0,
+                    line_end=0,
+                    message="World-writable file detected",
+                    description=f"File {file_path.name} is world-writable",
+                    recommendation="Remove world-write permission: chmod o-w"
+                )
+                vulnerabilities.append(vuln)
+                
+            # Check for executable files that shouldn't be
+            if mode & 0o111:  # Any execute bit set
+                if file_path.suffix in ['.txt', '.md', '.json', '.xml', '.yaml']:
+                    vuln = Vulnerability(
+                        id=hashlib.sha256(f"{file_path}:unexpected-executable".encode()).hexdigest()[:16],
+                        type=VulnerabilityType.PERMISSION_ISSUE,
+                        severity=SecurityLevel.LOW,
+                        file_path=str(file_path),
+                        line_start=0,
+                        line_end=0,
+                        message="Unexpected executable permission",
+                        description=f"File {file_path.name} has executable permission",
+                        recommendation="Remove executable permission if not needed"
+                    )
+                    vulnerabilities.append(vuln)
+                    
+        except Exception as e:
+            print(f"Error checking file permissions: {e}")
+            
+        return vulnerabilities
+
+
+class CryptoAnalyzer:
+    """Analyzes cryptographic usage"""
+    
+    async def analyze(self, file_path: str, content: str, language: str) -> List[Vulnerability]:
+        """Analyze crypto usage"""
+        vulnerabilities = []
+        
+        # Check for weak algorithms
+        weak_algos = {
+            'md5': SecurityLevel.HIGH,
+            'sha1': SecurityLevel.MEDIUM,
+            'des': SecurityLevel.HIGH,
+            'rc4': SecurityLevel.HIGH
+        }
+        
+        for algo, severity in weak_algos.items():
+            pattern = rf'\b{algo}\b'
+            matches = re.finditer(pattern, content, re.IGNORECASE)
+            
+            for match in matches:
+                line_start = content[:match.start()].count('\n') + 1
+                
+                vuln = Vulnerability(
+                    id=hashlib.sha256(
+                        f"{file_path}:{line_start}:weak-crypto:{algo}".encode()
+                    ).hexdigest()[:16],
+                    type=VulnerabilityType.WEAK_CRYPTO,
+                    severity=severity,
+                    file_path=file_path,
+                    line_start=line_start,
+                    line_end=line_start,
+                    message=f"Weak cryptographic algorithm: {algo.upper()}",
+                    recommendation="Use strong algorithms like SHA-256, AES, etc."
+                )
+                vulnerabilities.append(vuln)
+                
+        # Check for insecure random
+        if language == 'python':
+            if re.search(r'\brandom\.(random|randint|choice)\b', content):
+                matches = re.finditer(r'\brandom\.(random|randint|choice)\b', content)
+                
+                for match in matches:
+                    line_start = content[:match.start()].count('\n') + 1
+                    
+                    vuln = Vulnerability(
+                        id=hashlib.sha256(
+                            f"{file_path}:{line_start}:insecure-random".encode()
+                        ).hexdigest()[:16],
+                        type=VulnerabilityType.INSECURE_RANDOM,
+                        severity=SecurityLevel.MEDIUM,
+                        file_path=file_path,
+                        line_start=line_start,
+                        line_end=line_start,
+                        message="Insecure random number generator",
+                        recommendation="Use secrets module for cryptographic randomness"
+                    )
+                    vulnerabilities.append(vuln)
+                    
+        return vulnerabilities
+
+
+class CodeSanitizer:
+    """Sanitizes code and provides fixes"""
+    
+    def get_fix_function(self, vuln_type: VulnerabilityType) -> Optional[callable]:
+        """Get fix function for vulnerability type"""
+        fix_map = {
+            VulnerabilityType.HARDCODED_SECRET: self._fix_hardcoded_secret,
+            VulnerabilityType.INSECURE_RANDOM: self._fix_insecure_random,
+            VulnerabilityType.WEAK_CRYPTO: self._fix_weak_crypto
+        }
+        
+        return fix_map.get(vuln_type)
+        
+    async def validate_input(self, input_data: str, input_type: str) -> Tuple[bool, Optional[str]]:
+        """Validate and sanitize input"""
+        if input_type == 'sql':
+            # Check for SQL injection patterns
+            if re.search(r'(union|select|insert|update|delete|drop)\s', input_data, re.IGNORECASE):
+                return False, "Potential SQL injection detected"
+                
+        elif input_type == 'html':
+            # Check for XSS patterns
+            if re.search(r'<script|javascript:|onerror=', input_data, re.IGNORECASE):
+                return False, "Potential XSS detected"
+                
+        elif input_type == 'path':
+            # Check for path traversal
+            if '..' in input_data or input_data.startswith('/'):
+                return False, "Potential path traversal detected"
+                
+        return True, None
+        
+    async def _fix_hardcoded_secret(self, content: str, vuln: Vulnerability) -> str:
+        """Fix hardcoded secret by replacing with environment variable"""
+        lines = content.splitlines()
+        
+        if 0 <= vuln.line_start - 1 < len(lines):
+            line = lines[vuln.line_start - 1]
+            
+            # Replace with environment variable
+            import re
+            pattern = r'(["\']?)(\w+[_-]?(?:password|secret|key|token))(["\']?)\s*[:=]\s*["\'][^"\']+["\']'
+            
+            def replace_secret(match):
+                var_name = match.group(2).upper()
+                return f'{match.group(1)}{match.group(2)}{match.group(3)} = os.environ.get("{var_name}", "")'
+                
+            fixed_line = re.sub(pattern, replace_secret, line, flags=re.IGNORECASE)
+            lines[vuln.line_start - 1] = fixed_line
+            
+            # Add import if needed
+            if 'import os' not in content:
+                lines.insert(0, 'import os\n')
+                
+        return '\n'.join(lines)
+        
+    async def _fix_insecure_random(self, content: str, vuln: Vulnerability) -> str:
+        """Fix insecure random by using secrets module"""
+        # Replace random with secrets
+        fixed_content = content.replace('import random', 'import secrets')
+        fixed_content = fixed_content.replace('random.random()', 'secrets.SystemRandom().random()')
+        fixed_content = fixed_content.replace('random.randint', 'secrets.SystemRandom().randint')
+        fixed_content = fixed_content.replace('random.choice', 'secrets.choice')
+        
+        return fixed_content
+        
+    async def _fix_weak_crypto(self, content: str, vuln: Vulnerability) -> str:
+        """Fix weak crypto by suggesting stronger alternatives"""
+        replacements = {
+            'md5': 'sha256',
+            'sha1': 'sha256',
+            'des': 'aes',
+            'rc4': 'aes'
+        }
+        
+        for weak, strong in replacements.items():
+            content = re.sub(rf'\b{weak}\b', strong, content, flags=re.IGNORECASE)
+            
+        return content
+
+
+class QuarantineManager:
+    """Manages quarantined files"""
+    
+    def __init__(self, quarantine_dir: Path):
+        self.quarantine_dir = quarantine_dir
+        self.quarantine_dir.mkdir(parents=True, exist_ok=True)
+        
+    async def quarantine_file(self, file_path: str) -> bool:
+        """Move file to quarantine"""
+        try:
+            source = Path(file_path)
+            if not source.exists():
+                return False
+                
+            # Create quarantine path
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            quarantine_name = f"{source.name}.{timestamp}.quarantine"
+            quarantine_path = self.quarantine_dir / quarantine_name
+            
+            # Save metadata
+            metadata = {
+                'original_path': str(file_path),
+                'quarantined_at': datetime.now().isoformat(),
+                'reason': 'Critical security vulnerability detected'
+            }
+            
+            metadata_path = quarantine_path.with_suffix('.json')
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=2)
+                
+            # Move file
+            source.rename(quarantine_path)
+            
+            # Leave notice
+            with open(file_path, 'w') as f:
+                f.write(f"# File quarantined due to security risk\n")
+                f.write(f"# Original file moved to: {quarantine_path}\n")
+                f.write(f"# Quarantined at: {metadata['quarantined_at']}\n")
+                
+            return True
+            
+        except Exception as e:
+            print(f"Error quarantining file: {e}")
+            return False
+            
+    async def restore_file(self, quarantine_file: str) -> bool:
+        """Restore file from quarantine"""
+        try:
+            quarantine_path = self.quarantine_dir / quarantine_file
+            metadata_path = quarantine_path.with_suffix('.json')
+            
+            if not quarantine_path.exists() or not metadata_path.exists():
+                return False
+                
+            # Read metadata
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+                
+            original_path = Path(metadata['original_path'])
+            
+            # Restore file
+            quarantine_path.rename(original_path)
+            
+            # Remove metadata
+            metadata_path.unlink()
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error restoring file: {e}")
+            return False
+
+
+class SecretVault:
+    """Secure storage for secrets"""
+    
+    def __init__(self, vault_dir: Path):
+        self.vault_dir = vault_dir
+        self.vault_dir.mkdir(parents=True, exist_ok=True)
+        self.master_key = None
+        self.cipher = None
+        
+    async def initialize(self, master_password: Optional[str] = None):
+        """Initialize vault"""
+        key_file = self.vault_dir / '.key'
+        
+        if key_file.exists() and master_password:
+            # Derive key from password
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b'grace_ide_salt',  # In production, use random salt
+                iterations=100000
+            )
+            self.master_key = base64.urlsafe_b64encode(
+                kdf.derive(master_password.encode())
+            )
+        else:
+            # Generate new key
+            self.master_key = Fernet.generate_key()
+            
+            # Save encrypted
+            if master_password:
+                # Encrypt key with password
+                pass  # Implementation needed
+            else:
+                # Save key (insecure, for demo only)
+                with open(key_file, 'wb') as f:
+                    f.write(self.master_key)
+                    
+        self.cipher = Fernet(self.master_key)
+        
+    async def encrypt(self, data: str, key: Optional[str] = None) -> str:
+        """Encrypt data"""
+        if not self.cipher:
+            raise ValueError("Vault not initialized")
+            
+        encrypted = self.cipher.encrypt(data.encode())
+        return base64.urlsafe_b64encode(encrypted).decode()
+        
+    async def decrypt(self, encrypted_data: str, key: Optional[str] = None) -> str:
+        """Decrypt data"""
+        if not self.cipher:
+            raise ValueError("Vault not initialized")
+            
+        decoded = base64.urlsafe_b64decode(encrypted_data.encode())
+        decrypted = self.cipher.decrypt(decoded)
+        return decrypted.decode()
+        
+    async def store_secret(self, name: str, value: str):
+        """Store secret in vault"""
+        encrypted = await self.encrypt(value)
+        
+        secret_file = self.vault_dir / f"{name}.secret"
+        with open(secret_file, 'w') as f:
+            f.write(encrypted)
+            
+    async def retrieve_secret(self, name: str) -> Optional[str]:
+        """Retrieve secret from vault"""
+        secret_file = self.vault_dir / f"{name}.secret"
+        
+        if not secret_file.exists():
+            return None
+            
+        with open(secret_file, 'r') as f:
+            encrypted = f.read()
+            
+        return await self.decrypt(encrypted)
+        
+    async def close(self):
+        """Close vault"""
+        self.master_key = None
+        self.cipher = None
+
+
+# WebSocket handlers
+
+async def handle_security_request(websocket, message: Dict):
+    """Handle security requests from WebSocket"""
+    workspace_root = message.get('workspace_root', '.')
+    engine = SecurityEngine(workspace_root)
+    
+    action = message.get('action')
+    
+    if action == 'scan_file':
+        file_path = message.get('file_path')
+        content = message.get('content')
+        vulnerabilities = await engine.scan_file(file_path, content)
+        
+        await websocket.send(json.dumps({
+            'type': 'security_result',
+            'action': 'scan_file',
+            'vulnerabilities': [asdict(v) for v in vulnerabilities]
+        }))
+        
+    elif action == 'scan_workspace':
+        async def progress_callback(status):
+            await websocket.send(json.dumps({
+                'type': 'security_progress',
+                'status': status
+            }))
+            
+        result = await engine.scan_workspace(progress_callback)
+        
+        await websocket.send(json.dumps({
+            'type': 'security_result',
+            'action': 'scan_workspace',
+            'result': asdict(result)
+        }))
+        
+    elif action == 'fix_vulnerability':
+        vuln_id = message.get('vulnerability_id')
+        success = await engine.fix_vulnerability(vuln_id)
+        
+        await websocket.send(json.dumps({
+            'type': 'security_result',
+            'action': 'fix_vulnerability',
+            'success': success
+        }))
+        
+    elif action == 'generate_report':
+        scan_id = message.get('scan_id')
+        report = await engine.generate_security_report(scan_id)
+        
+        await websocket.send(json.dumps({
+            'type': 'security_result',
+            'action': 'report',
+            'report': report
+        }))

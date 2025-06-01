@@ -1,0 +1,102 @@
+{
+  "grace_ide_fonts": {
+    "version": "1.0.0",
+    "description": "Font configuration for Grace_IDE",
+    "fonts": {
+      "monospace": {
+        "primary": {
+          "name": "JetBrains Mono",
+          "fallback": ["Fira Code", "Source Code Pro", "Consolas", "Monaco", "monospace"],
+          "weights": [300, 400, 500, 600, 700],
+          "features": ["liga", "calt"],
+          "source": "https://www.jetbrains.com/lp/mono/",
+          "license": "Apache 2.0"
+        },
+        "secondary": {
+          "name": "Fira Code",
+          "fallback": ["Source Code Pro", "Consolas", "monospace"],
+          "weights": [300, 400, 500, 600],
+          "features": ["liga", "calt", "ss01", "ss02", "ss03"],
+          "source": "https://github.com/tonsky/FiraCode",
+          "license": "OFL"
+        }
+      },
+      "ui": {
+        "primary": {
+          "name": "Inter",
+          "fallback": ["system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+          "weights": [400, 500, 600, 700],
+          "features": ["kern", "liga", "calt", "tnum"],
+          "source": "https://rsms.me/inter/",
+          "license": "OFL"
+        },
+        "secondary": {
+          "name": "Roboto",
+          "fallback": ["system-ui", "sans-serif"],
+          "weights": [300, 400, 500, 700],
+          "source": "https://fonts.google.com/specimen/Roboto",
+          "license": "Apache 2.0"
+        }
+      },
+      "icons": {
+        "primary": {
+          "name": "Material Symbols",
+          "fallback": ["Material Icons"],
+          "weights": [400],
+          "features": ["liga"],
+          "source": "https://fonts.google.com/icons",
+          "license": "Apache 2.0"
+        }
+      }
+    },
+    "sizes": {
+      "editor": {
+        "default": 14,
+        "min": 10,
+        "max": 24,
+        "lineHeight": 1.6
+      },
+      "terminal": {
+        "default": 13,
+        "min": 10,
+        "max": 20,
+        "lineHeight": 1.4
+      },
+      "ui": {
+        "small": 11,
+        "normal": 13,
+        "medium": 14,
+        "large": 16,
+        "xlarge": 20
+      }
+    },
+    "themes": {
+      "light": {
+        "editor": {
+          "fontFamily": "JetBrains Mono",
+          "fontSize": 14,
+          "fontWeight": 400,
+          "letterSpacing": "0em"
+        },
+        "ui": {
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": 400
+        }
+      },
+      "dark": {
+        "editor": {
+          "fontFamily": "JetBrains Mono",
+          "fontSize": 14,
+          "fontWeight": 300,
+          "letterSpacing": "0.02em"
+        },
+        "ui": {
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": 400
+        }
+      }
+    }
+  }
+}
