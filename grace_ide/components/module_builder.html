@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Grace IDE - Module Builder</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <style>
+        /* Grace IDE Module Builder - Complete Styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+            background: #0a0b1e;
+            color: #ffffff;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow: hidden;
+        }
+
+        /* Module Builder Container */
+        .module-builder {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #0a0b1e;
+        }
+
+        /* Header */
+        .module-builder-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: #1a1b2e;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            z-index: 1000;
+        }
+
+        .module-builder-title {
+            font-size: 24px;
+            color: #00d4ff;
+            margin: 0;
+        }
+
+        .module-builder-controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Toolbar */
+        .module-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 12px 20px;
+            background: #161729;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 4px;
+            padding-right: 12px;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+        }
+
+        .toolbar-btn {
+            padding: 8px 12px;
+            background: transparent;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            color: #b0b8c3;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-btn:hover {
+            background: #404040;
+            color: #ffffff;
+        }
+
+        .toolbar-btn.active {
+            background: #00d4ff;
+            border-color: #00d4ff;
+            color: #ffffff;
+        }
+
+        /* Main Layout */
+        .module-builder-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar - Module Palette */
+        .module-palette {
+            width: 280px;
+            background: #161729;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .palette-section {
+            margin-bottom: 30px;
+        }
+
+        .palette-title {
+            font-size: 14px;
+            color: #8b8b8b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        /* Module Items */
+        .module-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #1e1e2e;
+            border-radius: 8px;
+            cursor: grab;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+            user-select: none;
+        }
+
+        .module-item:hover {
+            background: #252540;
+            border-color: #00d4ff;
+            transform: translateY(-1px);
+        }
+
+        .module-item:active {
+            cursor: grabbing;
+        }
+
+        .module-item.dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+
+        .module-icon {
+            font-size: 20px;
+            margin-right: 12px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .module-info {
+            flex: 1;
+        }
+
+        .module-name {
+            font-size: 14px;
+            color: #ffffff;
+            margin-bottom: 2px;
+        }
+
+        .module-description {
+            font-size: 12px;
+            color: #8b8b8b;
+        }
+
+        /* Canvas Area */
+        .module-canvas {
+            flex: 1;
+            position: relative;
+            background: #0a0b1e;
+            background-image: 
+                radial-gradient(circle at 25px 25px, rgba(255,255,255,0.05) 1px, transparent 0),
+                radial-gradient(circle at 75px 75px, rgba(255,255,255,0.02) 1px, transparent 0);
+            background-size: 50px 50px;
+            overflow: hidden;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+
+        .canvas-welcome {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #8b8b8b;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .canvas-welcome h3 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: #4a4a5a;
+        }
+
+        .canvas-welcome p {
+            font-size: 16px;
+            color: #6a6a7a;
+        }
+
+        .canvas-welcome.hidden {
+            display: none;
+        }
+
+        /* Dropped Modules */
+        .dropped-module {
+            position: absolute;
+            background: #1e1e2e;
+            border: 2px solid #00d4ff;
+            border-radius: 12px;
+            padding: 16px;
+            min-width: 200px;
+            max-width: 300px;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+            cursor: move;
+            user-select: none;
+            z-index: 100;
+        }
+
+        .dropped-module:hover {
+            border-color: #00ff88;
+            box-shadow: 0 6px 25px rgba(0, 255, 136, 0.4);
+        }
+
+        .dropped-module.selected {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .dropped-module-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .dropped-module-title {
+            font-size: 16px;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .dropped-module-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .module-control-btn {
+            width: 20px;
+            height: 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .module-control-btn.edit {
+            background: #4a4a5a;
+            color: #ffffff;
+        }
+
+        .module-control-btn.edit:hover {
+            background: #00d4ff;
+        }
+
+        .module-control-btn.delete {
+            background: #4a4a5a;
+            color: #ffffff;
+        }
+
+        .module-control-btn.delete:hover {
+            background: #ff4757;
+        }
+
+        .dropped-module-content {
+            color: #b0b8c3;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        /* Connection Points */
+        .connection-point {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #00d4ff;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            z-index: 200;
+        }
+
+        .connection-point:hover {
+            background: #00ff88;
+            transform: scale(1.2);
+        }
+
+        .connection-point.input {
+            left: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .connection-point.output {
+            right: -6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .connection-point.connecting {
+            background: #ff4757;
+            animation: pulse 1s infinite;
+        }
+
+        /* Property Panel */
+        .property-panel {
+            width: 300px;
+            background: #161729;
+            border-left: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .property-panel-header {
+            margin-bottom: 20px;
+        }
+
+        .property-panel-title {
+            font-size: 18px;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .property-panel-subtitle {
+            font-size: 14px;
+            color: #8b8b8b;
+        }
+
+        .property-group {
+            margin-bottom: 24px;
+        }
+
+        .property-group-title {
+            font-size: 14px;
+            color: #00d4ff;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .form-field {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            color: #b0b8c3;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: #1e1e2e;
+            border: 1px solid #404040;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #b0b8c3;
+            cursor: pointer;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s ease;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .btn-primary {
+            background: #00d4ff;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #00b8e6;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #404040;
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background: #505050;
+        }
+
+        .btn-danger {
+            background: #ff4757;
+            color: #ffffff;
+        }
+
+        .btn-danger:hover {
+            background: #ff3838;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 20px;
+            background: #161729;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 12px;
+            color: #8b8b8b;
+        }
+
+        .status-left,
+        .status-right {
+            display: flex;
+            gap: 16px;
+        }
+
+        /* Connection Lines */
+        .connection-line {
+            position: absolute;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .connection-line svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .connection-line path {
+            stroke: #00d4ff;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* Drag States */
+        .module-canvas.drag-over {
+            background-color: rgba(0, 212, 255, 0.05);
+        }
+
+        .drop-zone {
+            position: absolute;
+            border: 2px dashed #00d4ff;
+            border-radius: 8px;
+            background: rgba(0, 212, 255, 0.1);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .drop-zone.active {
+            opacity: 1;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .module-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) {
+            .module-palette {
+                width: 240px;
+            }
+            .property-panel {
+                width: 280px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .module-builder-main {
+                flex-direction: column;
+            }
+            .module-palette {
+                width: 100%;
+                height: 200px;
+                border-right: none;
+                border-bottom: 1px solid rgba(255,255,255,0.1);
+            }
+            .property-panel {
+                width: 100%;
+                height: 200px;
+                border-left: none;
+                border-top: 1px solid rgba(255,255,255,0.1);
+            }
+        }
+
+        /* Connection Drawing */
+        .temp-connection {
+            position: absolute;
+            pointer-events: none;
+            z-index: 150;
+        }
+
+        .temp-connection svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .temp-connection path {
+            stroke: #ff4757;
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 5;
+        }
+    </style>
+</head>
+<body>
+    <div class="module-builder">
+        <!-- Header -->
+        <header class="module-builder-header">
+            <h1 class="module-builder-title">🧩 Grace Module Builder</h1>
+            <div class="module-builder-controls">
+                <button class="btn btn-secondary" onclick="saveProject()">💾 Save</button>
+                <button class="btn btn-secondary" onclick="loadProject()">📁 Load</button>
+                <button class="btn btn-primary" onclick="deployProject()">🚀 Deploy</button>
+                <button class="btn btn-secondary" onclick="goBack()">← Back</button>
+            </div>
+        </header>
+
+        <!-- Toolbar -->
+        <div class="module-toolbar">
+            <div class="toolbar-group">
+                <button class="toolbar-btn active" onclick="setTool('select')" data-tool="select">🖱️ Select</button>
+                <button class="toolbar-btn" onclick="setTool('connect')" data-tool="connect">🔗 Connect</button>
+                <button class="toolbar-btn" onclick="setTool('delete')" data-tool="delete">🗑️ Delete</button>
+            </div>
+            <div class="toolbar-group">
+                <button class="toolbar-btn" onclick="zoomIn()">🔍 Zoom In</button>
+                <button class="toolbar-btn" onclick="zoomOut()">🔍 Zoom Out</button>
+                <button class="toolbar-btn" onclick="resetZoom()">📐 Reset</button>
+            </div>
+            <div class="toolbar-group">
+                <button class="toolbar-btn" onclick="clearCanvas()">🧹 Clear</button>
+                <button class="toolbar-btn" onclick="autoLayout()">📊 Auto Layout</button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="module-builder-main">
+            <!-- Module Palette -->
+            <aside class="module-palette">
+                <div class="palette-section">
+                    <div class="palette-title">🧠 Consciousness</div>
+                    <div class="module-item" data-module-type="consciousness">
+                        <div class="module-icon">🧠</div>
+                        <div class="module-info">
+                            <div class="module-name">Consciousness Core</div>
+                            <div class="module-description">Self-aware reasoning engine</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="reflection">
+                        <div class="module-icon">🤔</div>
+                        <div class="module-info">
+                            <div class="module-name">Reflection Engine</div>
+                            <div class="module-description">Self-analysis and introspection</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="ethics">
+                        <div class="module-icon">⚖️</div>
+                        <div class="module-info">
+                            <div class="module-name">Ethics Evaluator</div>
+                            <div class="module-description">Moral reasoning and validation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="palette-section">
+                    <div class="palette-title">💾 Memory</div>
+                    <div class="module-item" data-module-type="vector-memory">
+                        <div class="module-icon">🧮</div>
+                        <div class="module-info">
+                            <div class="module-name">Vector Memory</div>
+                            <div class="module-description">Semantic embeddings storage</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="temporal-memory">
+                        <div class="module-icon">⏰</div>
+                        <div class="module-info">
+                            <div class="module-name">Temporal Memory</div>
+                            <div class="module-description">Time-based memory with TTL</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="cache">
+                        <div class="module-icon">💾</div>
+                        <div class="module-info">
+                            <div class="module-name">Cache Layer</div>
+                            <div class="module-description">High-speed data cache</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="palette-section">
+                    <div class="palette-title">⚡ Execution</div>
+                    <div class="module-item" data-module-type="parallel-executor">
+                        <div class="module-icon">⚡</div>
+                        <div class="module-info">
+                            <div class="module-name">Parallel Executor</div>
+                            <div class="module-description">Multi-threaded processing</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="sandbox">
+                        <div class="module-icon">📦</div>
+                        <div class="module-info">
+                            <div class="module-name">Code Sandbox</div>
+                            <div class="module-description">Safe code execution</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="scheduler">
+                        <div class="module-icon">📅</div>
+                        <div class="module-info">
+                            <div class="module-name">Task Scheduler</div>
+                            <div class="module-description">Job scheduling and queuing</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="palette-section">
+                    <div class="palette-title">🛡️ Security</div>
+                    <div class="module-item" data-module-type="vulnerability-scanner">
+                        <div class="module-icon">🔍</div>
+                        <div class="module-info">
+                            <div class="module-name">Vulnerability Scanner</div>
+                            <div class="module-description">Security analysis engine</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="immune-system">
+                        <div class="module-icon">🛡️</div>
+                        <div class="module-info">
+                            <div class="module-name">Immune System</div>
+                            <div class="module-description">Threat detection and response</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="quarantine">
+                        <div class="module-icon">🚫</div>
+                        <div class="module-info">
+                            <div class="module-name">Quarantine</div>
+                            <div class="module-description">Malicious code isolation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="palette-section">
+                    <div class="palette-title">🔗 Integration</div>
+                    <div class="module-item" data-module-type="api-gateway">
+                        <div class="module-icon">🌐</div>
+                        <div class="module-info">
+                            <div class="module-name">API Gateway</div>
+                            <div class="module-description">External API integration</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="websocket">
+                        <div class="module-icon">🔗</div>
+                        <div class="module-info">
+                            <div class="module-name">WebSocket Hub</div>
+                            <div class="module-description">Real-time communication</div>
+                        </div>
+                    </div>
+                    <div class="module-item" data-module-type="event-bus">
+                        <div class="module-icon">📡</div>
+                        <div class="module-info">
+                            <div class="module-name">Event Bus</div>
+                            <div class="module-description">Message routing system</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Canvas -->
+            <div class="module-canvas" id="canvas">
+                <div class="canvas-welcome" id="canvasWelcome">
+                    <h3>Drag modules from the sidebar to start building</h3>
+                    <p>Connect modules to create intelligent systems</p>
+                </div>
+                <div class="canvas-overlay" id="canvasOverlay"></div>
+            </div>
+
+            <!-- Property Panel -->
+            <aside class="property-panel">
+                <div class="property-panel-header">
+                    <div class="property-panel-title" id="propertyTitle">No Module Selected</div>
+                    <div class="property-panel-subtitle" id="propertySubtitle">Select a module to edit its properties</div>
+                </div>
+
+                <div id="propertyContent">
+                    <div class="property-group">
+                        <div class="property-group-title">Welcome to Module Builder</div>
+                        <p style="color: #8b8b8b; font-size: 14px;">
+                            Create intelligent AI systems by dragging modules from the sidebar and connecting them together.
+                        </p>
+                        <br>
+                        <p style="color: #8b8b8b; font-size: 14px;">
+                            Each module represents a specific AI capability that can be configured and connected to build complex workflows.
+                        </p>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <div class="status-left">
+                <span id="moduleCount">Modules: 0</span>
+                <span id="connectionCount">Connections: 0</span>
+                <span id="graceStatus">Grace: ⚡ Active</span>
+            </div>
+            <div class="status-right">
+                <span id="zoomLevel">Zoom: 100%</span>
+                <span id="canvasSize">Canvas: 1920x1080</span>
+                <span id="lastSaved">Last saved: Never</span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Grace Module Builder - Complete Functionality
+        class GraceModuleBuilder {
+            constructor() {
+                this.modules = new Map();
+                this.connections = [];
+                this.selectedModule = null;
+                this.draggedModule = null;
+                this.currentTool = 'select';
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.moduleCounter = 0;
+                this.connectionCounter = 0;
+                this.isConnecting = false;
+                this.connectionStart = null;
+                this.tempConnection = null;
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.setupDragAndDrop();
+                this.updateStatus();
+                this.connectToGrace();
+            }
+
+            setupEventListeners() {
+                // Canvas events
+                const canvas = document.getElementById('canvas');
+                canvas.addEventListener('click', this.handleCanvasClick.bind(this));
+                canvas.addEventListener('mousemove', this.handleCanvasMouseMove.bind(this));
+                
+                // Module palette events
+                document.querySelectorAll('.module-item').forEach(item => {
+                    item.addEventListener('dragstart', this.handleDragStart.bind(this));
+                    item.addEventListener('dragend', this.handleDragEnd.bind(this));
+                    item.draggable = true;
+                });
+
+                // Window events
+                window.addEventListener('resize', this.handleResize.bind(this));
+                window.addEventListener('keydown', this.handleKeyDown.bind(this));
+            }
+
+            setupDragAndDrop() {
+                const canvas = document.getElementById('canvas');
+                
+                canvas.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    canvas.classList.add('drag-over');
+                });
+
+                canvas.addEventListener('dragleave', (e) => {
+                    canvas.classList.remove('drag-over');
+                });
+
+                canvas.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    canvas.classList.remove('drag-over');
+                    
+                    if (this.draggedModule) {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        this.createModule(this.draggedModule, x, y);
+                    }
+                });
+            }
+
+            handleDragStart(e) {
+                const moduleType = e.target.closest('.module-item').dataset.moduleType;
+                this.draggedModule = moduleType;
+                e.target.classList.add('dragging');
+            }
+
+            handleDragEnd(e) {
+                e.target.classList.remove('dragging');
+                this.draggedModule = null;
+            }
+
+            createModule(type, x, y) {
+                const moduleId = `module_${++this.moduleCounter}`;
+                const moduleConfig = this.getModuleConfig(type);
+                
+                const moduleElement = document.createElement('div');
+                moduleElement.className = 'dropped-module';
+                moduleElement.id = moduleId;
+                moduleElement.style.left = `${x - 100}px`;
+                moduleElement.style.top = `${y - 50}px`;
+                
+                moduleElement.innerHTML = `
+                    <div class="dropped-module-header">
+                        <div class="dropped-module-title">
+                            <span>${moduleConfig.icon}</span>
+                            <span>${moduleConfig.name}</span>
+                        </div>
+                        <div class="dropped-module-controls">
+                            <button class="module-control-btn edit" onclick="builder.editModule('${moduleId}')">⚙️</button>
+                            <button class="module-control-btn delete" onclick="builder.deleteModule('${moduleId}')">❌</button>
+                        </div>
+                    </div>
+                    <div class="dropped-module-content">
+                        ${moduleConfig.description}
+                    </div>
+                `;
+
+                // Add connection points
+                if (moduleConfig.inputs > 0) {
+                    const inputPoint = document.createElement('div');
+                    inputPoint.className = 'connection-point input';
+                    inputPoint.onclick = () => this.handleConnectionPointClick(moduleId, 'input');
+                    moduleElement.appendChild(inputPoint);
+                }
+
+                if (moduleConfig.outputs > 0) {
+                    const outputPoint = document.createElement('div');
+                    outputPoint.className = 'connection-point output';
+                    outputPoint.onclick = () => this.handleConnectionPointClick(moduleId, 'output');
+                    moduleElement.appendChild(outputPoint);
+                }
+
+                // Make draggable
+                this.makeDraggable(moduleElement);
+                
+                // Add click handler
+                moduleElement.onclick = (e) => {
+                    e.stopPropagation();
+                    this.selectModule(moduleId);
+                };
+
+                document.getElementById('canvas').appendChild(moduleElement);
+                
+                // Store module data
+                this.modules.set(moduleId, {
+                    id: moduleId,
+                    type: type,
+                    config: moduleConfig,
+                    x: x - 100,
+                    y: y - 50,
+                    properties: { ...moduleConfig.defaultProperties }
+                });
+
+                this.selectModule(moduleId);
+                this.hideCanvasWelcome();
+                this.updateStatus();
+            }
+
+            getModuleConfig(type) {
+                const configs = {
+                    'consciousness': {
+                        name: 'Consciousness Core',
+                        icon: '🧠',
+                        description: 'Self-aware reasoning and decision making',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            reflectionDepth: 3,
+                            ethicalMode: true,
+                            learningRate: 0.01
+                        }
+                    },
+                    'reflection': {
+                        name: 'Reflection Engine',
+                        icon: '🤔',
+                        description: 'Self-analysis and introspection',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            analysisDepth: 5,
+                            memoryWindow: 100
+                        }
+                    },
+                    'ethics': {
+                        name: 'Ethics Evaluator',
+                        icon: '⚖️',
+                        description: 'Moral reasoning and validation',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            strictness: 'medium',
+                            contextualAnalysis: true
+                        }
+                    },
+                    'vector-memory': {
+                        name: 'Vector Memory',
+                        icon: '🧮',
+                        description: 'Semantic embeddings storage and retrieval',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            dimensions: 128,
+                            similarityThreshold: 0.7,
+                            maxEntries: 10000
+                        }
+                    },
+                    'temporal-memory': {
+                        name: 'Temporal Memory',
+                        icon: '⏰',
+                        description: 'Time-based memory with TTL',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            defaultTTL: 3600,
+                            cleanupInterval: 300
+                        }
+                    },
+                    'cache': {
+                        name: 'Cache Layer',
+                        icon: '💾',
+                        description: 'High-speed data caching',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            maxSize: '100MB',
+                            evictionPolicy: 'LRU'
+                        }
+                    },
+                    'parallel-executor': {
+                        name: 'Parallel Executor',
+                        icon: '⚡',
+                        description: 'Multi-threaded task processing',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            maxWorkers: 4,
+                            queueSize: 1000,
+                            timeout: 30
+                        }
+                    },
+                    'sandbox': {
+                        name: 'Code Sandbox',
+                        icon: '📦',
+                        description: 'Safe code execution environment',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            languages: ['python', 'javascript'],
+                            memoryLimit: '256MB',
+                            timeoutSeconds: 10
+                        }
+                    },
+                    'scheduler': {
+                        name: 'Task Scheduler',
+                        icon: '📅',
+                        description: 'Job scheduling and queue management',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            maxConcurrent: 10,
+                            retryAttempts: 3
+                        }
+                    },
+                    'vulnerability-scanner': {
+                        name: 'Vulnerability Scanner',
+                        icon: '🔍',
+                        description: 'Security analysis and vulnerability detection',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            scanDepth: 'deep',
+                            autoFix: true,
+                            reportFormat: 'json'
+                        }
+                    },
+                    'immune-system': {
+                        name: 'Immune System',
+                        icon: '🛡️',
+                        description: 'Threat detection and automated response',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            sensitivity: 'high',
+                            autoResponse: true,
+                            quarantineEnabled: true
+                        }
+                    },
+                    'quarantine': {
+                        name: 'Quarantine',
+                        icon: '🚫',
+                        description: 'Malicious code isolation',
+                        inputs: 1,
+                        outputs: 0,
+                        defaultProperties: {
+                            isolationLevel: 'strict',
+                            reviewRequired: true
+                        }
+                    },
+                    'api-gateway': {
+                        name: 'API Gateway',
+                        icon: '🌐',
+                        description: 'External API integration hub',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            rateLimit: 1000,
+                            authRequired: true,
+                            cacheEnabled: true
+                        }
+                    },
+                    'websocket': {
+                        name: 'WebSocket Hub',
+                        icon: '🔗',
+                        description: 'Real-time bidirectional communication',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            maxConnections: 1000,
+                            heartbeatInterval: 30,
+                            compression: true
+                        }
+                    },
+                    'event-bus': {
+                        name: 'Event Bus',
+                        icon: '📡',
+                        description: 'Message routing and event distribution',
+                        inputs: 1,
+                        outputs: 1,
+                        defaultProperties: {
+                            bufferSize: 10000,
+                            durability: true,
+                            routingRules: []
+                        }
+                    }
+                };
+
+                return configs[type] || {
+                    name: 'Unknown Module',
+                    icon: '❓',
+                    description: 'Unknown module type',
+                    inputs: 1,
+                    outputs: 1,
+                    defaultProperties: {}
+                };
+            }
+
+            makeDraggable(element) {
+                let isDragging = false;
+                let startX, startY, offsetX, offsetY;
+
+                const handleMouseDown = (e) => {
+                    if (e.target.closest('.module-control-btn') || e.target.closest('.connection-point')) {
+                        return;
+                    }
+                    
+                    isDragging = true;
+                    const rect = element.getBoundingClientRect();
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    offsetX = e.clientX - rect.left;
+                    offsetY = e.clientY - rect.top;
+                    
+                    element.style.zIndex = '999';
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                    e.preventDefault();
+                };
+
+                const handleMouseMove = (e) => {
+                    if (!isDragging) return;
+                    
+                    const canvas = document.getElementById('canvas');
+                    const canvasRect = canvas.getBoundingClientRect();
+                    
+                    let newX = e.clientX - canvasRect.left - offsetX;
+                    let newY = e.clientY - canvasRect.top - offsetY;
+                    
+                    // Keep within canvas bounds
+                    newX = Math.max(0, Math.min(newX, canvasRect.width - element.offsetWidth));
+                    newY = Math.max(0, Math.min(newY, canvasRect.height - element.offsetHeight));
+                    
+                    element.style.left = `${newX}px`;
+                    element.style.top = `${newY}px`;
+                    
+                    // Update module data
+                    const moduleData = this.modules.get(element.id);
+                    if (moduleData) {
+                        moduleData.x = newX;
+                        moduleData.y = newY;
+                    }
+                    
+                    this.updateConnections();
+                };
+
+                const handleMouseUp = () => {
+                    isDragging = false;
+                    element.style.zIndex = '';
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                element.addEventListener('mousedown', handleMouseDown);
+            }
+
+            selectModule(moduleId) {
+                // Deselect previous
+                if (this.selectedModule) {
+                    const prevElement = document.getElementById(this.selectedModule);
+                    if (prevElement) {
+                        prevElement.classList.remove('selected');
+                    }
+                }
+
+                // Select new
+                this.selectedModule = moduleId;
+                const element = document.getElementById(moduleId);
+                if (element) {
+                    element.classList.add('selected');
+                }
+
+                this.updatePropertyPanel();
+            }
+
+            updatePropertyPanel() {
+                const titleElement = document.getElementById('propertyTitle');
+                const subtitleElement = document.getElementById('propertySubtitle');
+                const contentElement = document.getElementById('propertyContent');
+
+                if (!this.selectedModule) {
+                    titleElement.textContent = 'No Module Selected';
+                    subtitleElement.textContent = 'Select a module to edit its properties';
+                    contentElement.innerHTML = `
+                        <div class="property-group">
+                            <div class="property-group-title">Welcome to Module Builder</div>
+                            <p style="color: #8b8b8b; font-size: 14px;">
+                                Create intelligent AI systems by dragging modules from the sidebar and connecting them together.
+                            </p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const moduleData = this.modules.get(this.selectedModule);
+                if (!moduleData) return;
+
+                titleElement.textContent = moduleData.config.name;
+                subtitleElement.textContent = moduleData.config.description;
+
+                let propertiesHTML = `
+                    <div class="property-group">
+                        <div class="property-group-title">Module Info</div>
+                        <div class="form-field">
+                            <label class="form-label">Module ID</label>
+                            <input type="text" class="form-input" value="${moduleData.id}" readonly>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Module Type</label>
+                            <input type="text" class="form-input" value="${moduleData.type}" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="property-group">
+                        <div class="property-group-title">Configuration</div>
+                `;
+
+                // Generate property fields based on module type
+                for (const [key, value] of Object.entries(moduleData.properties)) {
+                    const fieldType = this.getFieldType(value);
+                    propertiesHTML += `
+                        <div class="form-field">
+                            <label class="form-label">${this.formatPropertyName(key)}</label>
+                            ${this.generatePropertyField(key, value, fieldType)}
+                        </div>
+                    `;
+                }
+
+                propertiesHTML += `
+                    </div>
+                    
+                    <div class="property-group">
+                        <div class="property-group-title">Actions</div>
+                        <button class="btn btn-primary" style="width: 100%; margin-bottom: 8px;" onclick="builder.testModule('${this.selectedModule}')">🧪 Test Module</button>
+                        <button class="btn btn-secondary" style="width: 100%; margin-bottom: 8px;" onclick="builder.duplicateModule('${this.selectedModule}')">📋 Duplicate</button>
+                        <button class="btn btn-danger" style="width: 100%;" onclick="builder.deleteModule('${this.selectedModule}')">🗑️ Delete</button>
+                    </div>
+                `;
+
+                contentElement.innerHTML = propertiesHTML;
+            }
+
+            getFieldType(value) {
+                if (typeof value === 'boolean') return 'checkbox';
+                if (typeof value === 'number') return 'number';
+                if (Array.isArray(value)) return 'select';
+                return 'text';
+            }
+
+            formatPropertyName(name) {
+                return name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+            }
+
+            generatePropertyField(key, value, type) {
+                switch (type) {
+                    case 'checkbox':
+                        return `<label class="form-checkbox">
+                            <input type="checkbox" ${value ? 'checked' : ''} onchange="builder.updateProperty('${this.selectedModule}', '${key}', this.checked)">
+                            <span>Enabled</span>
+                        </label>`;
+                    case 'number':
+                        return `<input type="number" class="form-input" value="${value}" onchange="builder.updateProperty('${this.selectedModule}', '${key}', parseFloat(this.value))">`;
+                    case 'select':
+                        const options = Array.isArray(value) ? value : ['option1', 'option2'];
+                        return `<select class="form-select" onchange="builder.updateProperty('${this.selectedModule}', '${key}', this.value)">
+                            ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                        </select>`;
+                    default:
+                        return `<input type="text" class="form-input" value="${value}" onchange="builder.updateProperty('${this.selectedModule}', '${key}', this.value)">`;
+                }
+            }
+
+            updateProperty(moduleId, property, value) {
+                const moduleData = this.modules.get(moduleId);
+                if (moduleData) {
+                    moduleData.properties[property] = value;
+                    console.log(`Updated ${moduleId}.${property} = ${value}`);
+                }
+            }
+
+            handleConnectionPointClick(moduleId, type) {
+                if (this.currentTool !== 'connect') return;
+
+                if (!this.isConnecting) {
+                    // Start connection
+                    this.isConnecting = true;
+                    this.connectionStart = { moduleId, type };
+                    
+                    // Visual feedback
+                    const point = document.querySelector(`#${moduleId} .connection-point.${type}`);
+                    if (point) {
+                        point.classList.add('connecting');
+                    }
+                } else {
+                    // Complete connection
+                    if (this.connectionStart.moduleId !== moduleId) {
+                        this.createConnection(this.connectionStart, { moduleId, type });
+                    }
+                    
+                    this.stopConnecting();
+                }
+            }
+
+            createConnection(start, end) {
+                // Validate connection (output to input)
+                if (start.type === 'output' && end.type === 'input') {
+                    const connectionId = `conn_${++this.connectionCounter}`;
+                    
+                    this.connections.push({
+                        id: connectionId,
+                        from: start.moduleId,
+                        to: end.moduleId,
+                        fromType: start.type,
+                        toType: end.type
+                    });
+                    
+                    this.drawConnection(start.moduleId, end.moduleId);
+                    this.updateStatus();
+                    console.log(`Connected ${start.moduleId} → ${end.moduleId}`);
+                }
+            }
+
+            drawConnection(fromModuleId, toModuleId) {
+                const fromElement = document.getElementById(fromModuleId);
+                const toElement = document.getElementById(toModuleId);
+                
+                if (!fromElement || !toElement) return;
+
+                const canvas = document.getElementById('canvas');
+                const connectionLine = document.createElement('div');
+                connectionLine.className = 'connection-line';
+                connectionLine.id = `connection_${fromModuleId}_${toModuleId}`;
+                
+                canvas.appendChild(connectionLine);
+                this.updateConnectionLine(connectionLine, fromElement, toElement);
+            }
+
+            updateConnectionLine(line, fromElement, toElement) {
+                const fromRect = fromElement.getBoundingClientRect();
+                const toRect = toElement.getBoundingClientRect();
+                const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                
+                const fromX = fromRect.right - canvasRect.left;
+                const fromY = fromRect.top + fromRect.height / 2 - canvasRect.top;
+                const toX = toRect.left - canvasRect.left;
+                const toY = toRect.top + toRect.height / 2 - canvasRect.top;
+                
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                
+                const midX = (fromX + toX) / 2;
+                const pathData = `M ${fromX} ${fromY} C ${midX} ${fromY} ${midX} ${toY} ${toX} ${toY}`;
+                
+                path.setAttribute('d', pathData);
+                path.setAttribute('stroke', '#00d4ff');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                
+                svg.appendChild(path);
+                line.innerHTML = '';
+                line.appendChild(svg);
+                
+                // Position and size the container
+                const minX = Math.min(fromX, toX);
+                const minY = Math.min(fromY, toY);
+                const width = Math.abs(toX - fromX) + 20;
+                const height = Math.abs(toY - fromY) + 20;
+                
+                line.style.left = `${minX - 10}px`;
+                line.style.top = `${minY - 10}px`;
+                line.style.width = `${width}px`;
+                line.style.height = `${height}px`;
+            }
+
+            updateConnections() {
+                // Update all connection lines when modules move
+                this.connections.forEach(conn => {
+                    const line = document.getElementById(`connection_${conn.from}_${conn.to}`);
+                    const fromElement = document.getElementById(conn.from);
+                    const toElement = document.getElementById(conn.to);
+                    
+                    if (line && fromElement && toElement) {
+                        this.updateConnectionLine(line, fromElement, toElement);
+                    }
+                });
+            }
+
+            stopConnecting() {
+                this.isConnecting = false;
+                this.connectionStart = null;
+                
+                // Remove visual feedback
+                document.querySelectorAll('.connection-point.connecting').forEach(point => {
+                    point.classList.remove('connecting');
+                });
+            }
+
+            deleteModule(moduleId) {
+                const element = document.getElementById(moduleId);
+                if (element) {
+                    element.remove();
+                }
+                
+                // Remove connections
+                this.connections = this.connections.filter(conn => {
+                    if (conn.from === moduleId || conn.to === moduleId) {
+                        const line = document.getElementById(`connection_${conn.from}_${conn.to}`);
+                        if (line) line.remove();
+                        return false;
+                    }
+                    return true;
+                });
+                
+                this.modules.delete(moduleId);
+                
+                if (this.selectedModule === moduleId) {
+                    this.selectedModule = null;
+                    this.updatePropertyPanel();
+                }
+                
+                this.updateStatus();
+                this.showCanvasWelcomeIfEmpty();
+            }
+
+            duplicateModule(moduleId) {
+                const moduleData = this.modules.get(moduleId);
+                if (moduleData) {
+                    this.createModule(moduleData.type, moduleData.x + 50, moduleData.y + 50);
+                }
+            }
+
+            testModule(moduleId) {
+                const moduleData = this.modules.get(moduleId);
+                if (moduleData) {
+                    console.log('Testing module:', moduleData);
+                    alert(`Testing ${moduleData.config.name}...\n\nModule would be executed with current configuration.`);
+                }
+            }
+
+            editModule(moduleId) {
+                this.selectModule(moduleId);
+            }
+
+            handleCanvasClick(e) {
+                if (e.target.id === 'canvas' || e.target.classList.contains('canvas-overlay')) {
+                    this.selectedModule = null;
+                    document.querySelectorAll('.dropped-module.selected').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    this.updatePropertyPanel();
+                    this.stopConnecting();
+                }
+            }
+
+            handleCanvasMouseMove(e) {
+                // Handle temporary connection line drawing
+                if (this.isConnecting && this.connectionStart) {
+                    // Draw temporary line from connection start to mouse
+                    // Implementation would go here
+                }
+            }
+
+            handleKeyDown(e) {
+                if (e.key === 'Delete' && this.selectedModule) {
+                    this.deleteModule(this.selectedModule);
+                } else if (e.key === 'Escape') {
+                    this.stopConnecting();
+                }
+            }
+
+            handleResize() {
+                this.updateConnections();
+                this.updateStatus();
+            }
+
+            hideCanvasWelcome() {
+                const welcome = document.getElementById('canvasWelcome');
+                if (welcome) {
+                    welcome.classList.add('hidden');
+                }
+            }
+
+            showCanvasWelcomeIfEmpty() {
+                if (this.modules.size === 0) {
+                    const welcome = document.getElementById('canvasWelcome');
+                    if (welcome) {
+                        welcome.classList.remove('hidden');
+                    }
+                }
+            }
+
+            updateStatus() {
+                document.getElementById('moduleCount').textContent = `Modules: ${this.modules.size}`;
+                document.getElementById('connectionCount').textContent = `Connections: ${this.connections.length}`;
+                document.getElementById('zoomLevel').textContent = `Zoom: ${Math.round(this.zoom * 100)}%`;
+                
+                const canvas = document.getElementById('canvas');
+                document.getElementById('canvasSize').textContent = `Canvas: ${canvas.offsetWidth}x${canvas.offsetHeight}`;
+            }
+
+            connectToGrace() {
+                // Connect to Grace backend if available
+                if (window.graceConnection) {
+                    window.graceConnection.onMessage('module_builder_response', (message) => {
+                        console.log('Grace response:', message);
+                    });
+                    
+                    // Send initial connection
+                    window.graceConnection.send({
+                        type: 'module_builder_init',
+                        data: { status: 'ready' }
+                    });
+                }
+            }
+
+            // Toolbar functions
+            setTool(tool) {
+                this.currentTool = tool;
+                document.querySelectorAll('.toolbar-btn[data-tool]').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                const toolBtn = document.querySelector(`[data-tool="${tool}"]`);
+                if (toolBtn) {
+                    toolBtn.classList.add('active');
+                }
+                
+                if (tool !== 'connect') {
+                    this.stopConnecting();
+                }
+            }
+
+            zoomIn() {
+                this.zoom = Math.min(this.zoom * 1.2, 3);
+                this.applyZoom();
+            }
+
+            zoomOut() {
+                this.zoom = Math.max(this.zoom / 1.2, 0.3);
+                this.applyZoom();
+            }
+
+            resetZoom() {
+                this.zoom = 1;
+                this.panX = 0;
+                this.panY = 0;
+                this.applyZoom();
+            }
+
+            applyZoom() {
+                const canvas = document.getElementById('canvas');
+                canvas.style.transform = `scale(${this.zoom}) translate(${this.panX}px, ${this.panY}px)`;
+                this.updateStatus();
+            }
+
+            clearCanvas() {
+                if (confirm('Are you sure you want to clear all modules? This cannot be undone.')) {
+                    const moduleIds = Array.from(this.modules.keys());
+                    moduleIds.forEach(moduleId => {
+                        this.deleteModule(moduleId);
+                    });
+                    this.showCanvasWelcomeIfEmpty();
+                }
+            }
+
+            autoLayout() {
+                // Simple grid layout
+                const modules = Array.from(this.modules.values());
+                const cols = Math.ceil(Math.sqrt(modules.length));
+                const spacing = 250;
+                
+                modules.forEach((module, index) => {
+                    const row = Math.floor(index / cols);
+                    const col = index % cols;
+                    const x = col * spacing + 50;
+                    const y = row * spacing + 50;
+                    
+                    const element = document.getElementById(module.id);
+                    if (element) {
+                        element.style.left = `${x}px`;
+                        element.style.top = `${y}px`;
+                        module.x = x;
+                        module.y = y;
+                    }
+                });
+                
+                this.updateConnections();
+            }
+
+            saveProject() {
+                const projectData = {
+                    modules: Array.from(this.modules.entries()),
+                    connections: this.connections,
+                    metadata: {
+                        name: 'Grace Module Project',
+                        created: new Date().toISOString(),
+                        version: '1.0'
+                    }
+                };
+                
+                const dataStr = JSON.stringify(projectData, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'grace-module-project.json';
+                link.click();
+                
+                URL.revokeObjectURL(url);
+                
+                document.getElementById('lastSaved').textContent = `Last saved: ${new Date().toLocaleTimeString()}`;
+            }
+
+            loadProject() {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            try {
+                                const projectData = JSON.parse(e.target.result);
+                                this.loadProjectData(projectData);
+                            } catch (error) {
+                                alert('Error loading project: Invalid file format');
+                            }
+                        };
+                        reader.readAsText(file);
+                    }
+                };
+                input.click();
+            }
+
+            loadProjectData(projectData) {
+                // Clear current project
+                this.clearCanvas();
+                
+                // Load modules
+                projectData.modules.forEach(([moduleId, moduleData]) => {
+                    this.createModuleFromData(moduleData);
+                });
+                
+                // Load connections
+                setTimeout(() => {
+                    projectData.connections.forEach(conn => {
+                        this.connections.push(conn);
+                        this.drawConnection(conn.from, conn.to);
+                    });
+                    this.updateStatus();
+                }, 100);
+            }
+
+            createModuleFromData(moduleData) {
+                // Recreate module from saved data
+                const element = document.createElement('div');
+                element.className = 'dropped-module';
+                element.id = moduleData.id;
+                element.style.left = `${moduleData.x}px`;
+                element.style.top = `${moduleData.y}px`;
+                
+                element.innerHTML = `
+                    <div class="dropped-module-header">
+                        <div class="dropped-module-title">
+                            <span>${moduleData.config.icon}</span>
+                            <span>${moduleData.config.name}</span>
+                        </div>
+                        <div class="dropped-module-controls">
+                            <button class="module-control-btn edit" onclick="builder.editModule('${moduleData.id}')">⚙️</button>
+                            <button class="module-control-btn delete" onclick="builder.deleteModule('${moduleData.id}')">❌</button>
+                        </div>
+                    </div>
+                    <div class="dropped-module-content">
+                        ${moduleData.config.description}
+                    </div>
+                `;
+
+                // Add connection points
+                if (moduleData.config.inputs > 0) {
+                    const inputPoint = document.createElement('div');
+                    inputPoint.className = 'connection-point input';
+                    inputPoint.onclick = () => this.handleConnectionPointClick(moduleData.id, 'input');
+                    element.appendChild(inputPoint);
+                }
+
+                if (moduleData.config.outputs > 0) {
+                    const outputPoint = document.createElement('div');
+                    outputPoint.className = 'connection-point output';
+                    outputPoint.onclick = () => this.handleConnectionPointClick(moduleData.id, 'output');
+                    element.appendChild(outputPoint);
+                }
+
+                this.makeDraggable(element);
+                element.onclick = (e) => {
+                    e.stopPropagation();
+                    this.selectModule(moduleData.id);
+                };
+
+                document.getElementById('canvas').appendChild(element);
+                this.modules.set(moduleData.id, moduleData);
+                this.hideCanvasWelcome();
+            }
+
+            deployProject() {
+                if (this.modules.size === 0) {
+                    alert('No modules to deploy. Add some modules first!');
+                    return;
+                }
+                
+                const deploymentData = {
+                    modules: Array.from(this.modules.entries()),
+                    connections: this.connections,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Send to Grace backend for deployment
+                if (window.graceConnection && window.graceConnection.isConnected) {
+                    window.graceConnection.send({
+                        type: 'deploy_modules',
+                        data: deploymentData
+                    });
+                    
+                    alert('Deploying modules to Grace consciousness...\n\nModules will be integrated into the Grace system.');
+                } else {
+                    console.log('Deployment data:', deploymentData);
+                    alert('Grace backend not connected.\n\nModules would be deployed with current configuration.');
+                }
+            }
+        }
+
+        // Global functions for button handlers
+        function setTool(tool) { builder.setTool(tool); }
+        function zoomIn() { builder.zoomIn(); }
+        function zoomOut() { builder.zoomOut(); }
+        function resetZoom() { builder.resetZoom(); }
+        function clearCanvas() { builder.clearCanvas(); }
+        function autoLayout() { builder.autoLayout(); }
+        function saveProject() { builder.saveProject(); }
+        function loadProject() { builder.loadProject(); }
+        function deployProject() { builder.deployProject(); }
+        function goBack() { window.location.href = '/'; }
+
+        // Initialize the module builder
+        let builder;
+        document.addEventListener('DOMContentLoaded', () => {
+            builder = new GraceModuleBuilder();
+            console.log('🧩 Grace Module Builder initialized');
+        });
+    </script>
+</body>
+</html>
