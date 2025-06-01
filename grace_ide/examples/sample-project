@@ -1,0 +1,2168 @@
+"""
+Grace_IDE Sample Project
+A comprehensive example project showcasing Grace_IDE features
+"""
+
+import os
+import json
+from pathlib import Path
+from datetime import datetime
+
+
+class SampleProjectGenerator:
+    """Generates a complete sample project for Grace_IDE"""
+    
+    def __init__(self, project_root: str = "./sample-project"):
+        self.project_root = Path(project_root)
+        self.project_root.mkdir(exist_ok=True)
+    
+    def create_project(self):
+        """Create the complete sample project structure"""
+        print("🚀 Creating Grace_IDE Sample Project...\n")
+        
+        # Create project structure
+        self._create_project_structure()
+        
+        # Create project files
+        self._create_readme()
+        self._create_project_config()
+        self._create_python_app()
+        self._create_web_frontend()
+        self._create_api_server()
+        self._create_database_schema()
+        self._create_tests()
+        self._create_documentation()
+        self._create_deployment_configs()
+        self._create_grace_ide_config()
+        
+        print(f"\n✅ Sample project created at: {self.project_root.absolute()}")
+    
+    def _create_project_structure(self):
+        """Create directory structure"""
+        directories = [
+            "src",
+            "src/backend",
+            "src/frontend",
+            "src/frontend/components",
+            "src/frontend/styles",
+            "src/api",
+            "src/utils",
+            "tests",
+            "tests/unit",
+            "tests/integration",
+            "docs",
+            "database",
+            "scripts",
+            "config",
+            ".grace",
+        ]
+        
+        for directory in directories:
+            (self.project_root / directory).mkdir(parents=True, exist_ok=True)
+    
+    def _create_readme(self):
+        """Create README.md"""
+        readme_content = """# Task Manager Pro
+
+A full-featured task management application built with Grace_IDE.
+
+## Features
+
+- ✅ Create, update, and delete tasks
+- 📊 Task analytics and reporting
+- 👥 Multi-user support with authentication
+- 🔍 Advanced search and filtering
+- 📱 Responsive web interface
+- 🚀 RESTful API
+- 🔒 Security-first design
+
+## Tech Stack
+
+- **Backend**: Python (FastAPI)
+- **Frontend**: JavaScript (React)
+- **Database**: PostgreSQL
+- **Cache**: Redis
+- **Deployment**: Docker
+
+## Quick Start
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+npm install
+
+# Set up database
+python scripts/setup_database.py
+
+# Run development server
+python src/main.py
+
+# In another terminal, start frontend
+npm start
+```
+
+## Project Structure
+
+```
+sample-project/
+├── src/                # Source code
+│   ├── backend/       # Python backend
+│   ├── frontend/      # React frontend
+│   ├── api/          # API endpoints
+│   └── utils/        # Shared utilities
+├── tests/            # Test suites
+├── docs/             # Documentation
+├── database/         # Database schemas
+├── scripts/          # Utility scripts
+└── config/           # Configuration files
+```
+
+## Development with Grace_IDE
+
+This project is optimized for development with Grace_IDE:
+
+1. **Code Intelligence**: Full autocomplete and type checking
+2. **Integrated Testing**: Run tests directly from the editor
+3. **Live Debugging**: Set breakpoints and inspect variables
+4. **Git Integration**: Version control built-in
+5. **Deployment**: One-click deployment to cloud
+
+## API Documentation
+
+See [API Documentation](./docs/api.md) for detailed endpoint information.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+"""
+        
+        (self.project_root / "README.md").write_text(readme_content)
+        print("✓ Created README.md")
+    
+    def _create_project_config(self):
+        """Create project configuration files"""
+        # package.json
+        package_json = {
+            "name": "task-manager-pro",
+            "version": "1.0.0",
+            "description": "Task management application",
+            "main": "src/frontend/index.js",
+            "scripts": {
+                "start": "react-scripts start",
+                "build": "react-scripts build",
+                "test": "jest",
+                "lint": "eslint src/frontend"
+            },
+            "dependencies": {
+                "react": "^18.2.0",
+                "react-dom": "^18.2.0",
+                "axios": "^1.4.0",
+                "react-router-dom": "^6.11.0"
+            },
+            "devDependencies": {
+                "eslint": "^8.40.0",
+                "jest": "^29.5.0",
+                "@types/react": "^18.2.0"
+            }
+        }
+        
+        (self.project_root / "package.json").write_text(
+            json.dumps(package_json, indent=2)
+        )
+        
+        # requirements.txt
+        requirements = """fastapi==0.104.1
+uvicorn==0.24.0
+sqlalchemy==2.0.23
+alembic==1.12.1
+psycopg2-binary==2.9.9
+redis==5.0.1
+pydantic==2.5.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+flake8==6.1.0
+mypy==1.7.0
+"""
+        
+        (self.project_root / "requirements.txt").write_text(requirements)
+        
+        # .env.example
+        env_example = """# Application Settings
+APP_NAME=TaskManagerPro
+APP_ENV=development
+DEBUG=true
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+WORKERS=4
+
+# Database Configuration
+DATABASE_URL=postgresql://user:password@localhost:5432/taskmanager
+DATABASE_POOL_SIZE=10
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+
+# Security
+SECRET_KEY=your-secret-key-here-change-in-production
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_HOURS=24
+
+# CORS Settings
+CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+
+# Email Configuration (optional)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+
+# Grace IDE Settings
+GRACE_IDE_WORKSPACE=./
+GRACE_IDE_PORT=8765
+"""
+        
+        (self.project_root / ".env.example").write_text(env_example)
+        
+        # .gitignore
+        gitignore = """# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# JavaScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+*.egg-info/
+.cache/
+
+# Grace IDE
+.grace/cache/
+.grace/logs/
+.grace/temp/
+"""
+        
+        (self.project_root / ".gitignore").write_text(gitignore)
+        print("✓ Created configuration files")
+    
+    def _create_python_app(self):
+        """Create Python backend application"""
+        # Main application
+        main_py = '''#!/usr/bin/env python3
+"""
+Task Manager Pro - Main Application
+Built with Grace_IDE
+"""
+
+import asyncio
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+from src.api import api_router
+from src.backend.database import init_db, close_db
+from src.backend.config import get_settings
+from src.utils.logger import setup_logger
+
+# Initialize logger
+logger = setup_logger(__name__)
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    # Startup
+    logger.info(f"Starting {settings.APP_NAME}...")
+    await init_db()
+    yield
+    # Shutdown
+    logger.info("Shutting down...")
+    await close_db()
+
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version="1.0.0",
+    description="Task Management Application",
+    lifespan=lifespan
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routes
+app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": f"Welcome to {settings.APP_NAME}",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "service": settings.APP_NAME,
+        "environment": settings.APP_ENV
+    }
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "src.main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        workers=1 if settings.DEBUG else settings.WORKERS
+    )
+'''
+        
+        (self.project_root / "src" / "main.py").write_text(main_py)
+        
+        # Create __init__.py files
+        for directory in ["src", "src/backend", "src/api", "src/utils"]:
+            (self.project_root / directory / "__init__.py").write_text("")
+        
+        # Backend models
+        models_py = '''"""Database models for Task Manager"""
+
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
+from .database import Base
+
+
+class User(Base):
+    """User model"""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    tasks = relationship("Task", back_populates="owner", cascade="all, delete-orphan")
+
+
+class Task(Base):
+    """Task model"""
+    __tablename__ = "tasks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text)
+    status = Column(String(20), default="pending")  # pending, in_progress, completed
+    priority = Column(String(10), default="medium")  # low, medium, high
+    due_date = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    
+    # Foreign keys
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    owner = relationship("User", back_populates="tasks")
+    tags = relationship("Tag", secondary="task_tags", back_populates="tasks")
+
+
+class Tag(Base):
+    """Tag model"""
+    __tablename__ = "tags"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True, index=True, nullable=False)
+    color = Column(String(7), default="#6366f1")  # Hex color
+    
+    # Relationships
+    tasks = relationship("Task", secondary="task_tags", back_populates="tags")
+
+
+class TaskTag(Base):
+    """Association table for tasks and tags"""
+    __tablename__ = "task_tags"
+    
+    task_id = Column(Integer, ForeignKey("tasks.id"), primary_key=True)
+    tag_id = Column(Integer, ForeignKey("tags.id"), primary_key=True)
+'''
+        
+        (self.project_root / "src" / "backend" / "models.py").write_text(models_py)
+        
+        # Configuration
+        config_py = '''"""Application configuration"""
+
+from functools import lru_cache
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Application settings"""
+    
+    # Application
+    APP_NAME: str = "TaskManagerPro"
+    APP_ENV: str = "development"
+    DEBUG: bool = True
+    
+    # Server
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    WORKERS: int = 4
+    
+    # Database
+    DATABASE_URL: str = "postgresql://user:password@localhost:5432/taskmanager"
+    DATABASE_POOL_SIZE: int = 10
+    
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # Security
+    SECRET_KEY: str = "your-secret-key-here"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_HOURS: int = 24
+    
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:3000"
+    
+    class Config:
+        env_file = ".env"
+
+
+@lru_cache()
+def get_settings():
+    """Get cached settings instance"""
+    return Settings()
+'''
+        
+        (self.project_root / "src" / "backend" / "config.py").write_text(config_py)
+        
+        # Database setup
+        database_py = '''"""Database configuration and session management"""
+
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+from .config import get_settings
+
+settings = get_settings()
+
+# Create engine
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    pool_pre_ping=True
+)
+
+# Create session factory
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create base class for models
+Base = declarative_base()
+
+
+async def init_db():
+    """Initialize database"""
+    # Import models to register them
+    from . import models
+    
+    # Create tables
+    Base.metadata.create_all(bind=engine)
+
+
+async def close_db():
+    """Close database connections"""
+    engine.dispose()
+
+
+def get_db():
+    """Get database session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+'''
+        
+        (self.project_root / "src" / "backend" / "database.py").write_text(database_py)
+        print("✓ Created Python backend")
+    
+    def _create_web_frontend(self):
+        """Create React frontend"""
+        # Main App component
+        app_jsx = '''import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { TaskProvider } from './context/TaskContext';
+import { AuthProvider } from './context/AuthContext';
+
+// Components
+import Header from './components/Header';
+import Dashboard from './components/Dashboard';
+import TaskList from './components/TaskList';
+import TaskForm from './components/TaskForm';
+import Login from './components/Login';
+import Register from './components/Register';
+
+// Styles
+import './styles/App.css';
+
+function App() {
+  return (
+    <AuthProvider>
+      <TaskProvider>
+        <Router>
+          <div className="App">
+            <Header />
+            <main className="main-content">
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/tasks" element={<TaskList />} />
+                <Route path="/tasks/new" element={<TaskForm />} />
+                <Route path="/tasks/:id/edit" element={<TaskForm />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+              </Routes>
+            </main>
+          </div>
+        </Router>
+      </TaskProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;
+'''
+        
+        (self.project_root / "src" / "frontend" / "App.js").write_text(app_jsx)
+        
+        # Task List Component
+        task_list_jsx = '''import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useTasks } from '../context/TaskContext';
+import TaskItem from './TaskItem';
+import FilterBar from './FilterBar';
+
+function TaskList() {
+  const { tasks, loading, fetchTasks } = useTasks();
+  const [filteredTasks, setFilteredTasks] = useState([]);
+  const [filters, setFilters] = useState({
+    status: 'all',
+    priority: 'all',
+    search: ''
+  });
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  useEffect(() => {
+    let filtered = [...tasks];
+
+    // Apply filters
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(task => task.status === filters.status);
+    }
+
+    if (filters.priority !== 'all') {
+      filtered = filtered.filter(task => task.priority === filters.priority);
+    }
+
+    if (filters.search) {
+      filtered = filtered.filter(task =>
+        task.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+        task.description?.toLowerCase().includes(filters.search.toLowerCase())
+      );
+    }
+
+    setFilteredTasks(filtered);
+  }, [tasks, filters]);
+
+  if (loading) {
+    return <div className="loading">Loading tasks...</div>;
+  }
+
+  return (
+    <div className="task-list-container">
+      <div className="task-list-header">
+        <h1>My Tasks</h1>
+        <Link to="/tasks/new" className="btn btn-primary">
+          Create New Task
+        </Link>
+      </div>
+
+      <FilterBar filters={filters} onFilterChange={setFilters} />
+
+      <div className="task-list">
+        {filteredTasks.length === 0 ? (
+          <div className="empty-state">
+            <p>No tasks found</p>
+            <Link to="/tasks/new">Create your first task</Link>
+          </div>
+        ) : (
+          filteredTasks.map(task => (
+            <TaskItem key={task.id} task={task} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default TaskList;
+'''
+        
+        (self.project_root / "src" / "frontend" / "components" / "TaskList.js").write_text(task_list_jsx)
+        
+        # CSS Styles
+        app_css = '''/* Task Manager Pro - Main Styles */
+
+:root {
+  --primary-color: #6366f1;
+  --secondary-color: #f59e0b;
+  --success-color: #10b981;
+  --danger-color: #ef4444;
+  --dark-color: #1f2937;
+  --light-color: #f3f4f6;
+  --border-radius: 8px;
+  --box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--dark-color);
+  background-color: var(--light-color);
+}
+
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header Styles */
+.header {
+  background-color: white;
+  box-shadow: var(--box-shadow);
+  padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+}
+
+.nav-links a {
+  color: var(--dark-color);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+  color: var(--primary-color);
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+  width: 100%;
+}
+
+/* Task List Styles */
+.task-list-container {
+  background-color: white;
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  box-shadow: var(--box-shadow);
+}
+
+.task-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.task-item {
+  border: 1px solid #e5e7eb;
+  border-radius: var(--border-radius);
+  padding: 1rem;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.task-item:hover {
+  box-shadow: var(--box-shadow);
+  transform: translateY(-2px);
+}
+
+.task-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.task-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--dark-color);
+}
+
+.task-priority {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.priority-high {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.priority-medium {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.priority-low {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #4f46e5;
+}
+
+.btn-secondary {
+  background-color: var(--light-color);
+  color: var(--dark-color);
+}
+
+.btn-secondary:hover {
+  background-color: #e5e7eb;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--dark-color);
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  transition: border-color 0.3s;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* Loading State */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4rem;
+  font-size: 1.1rem;
+  color: #6b7280;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 4rem;
+  color: #6b7280;
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-content,
+  .task-list-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .nav-links {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .main-content {
+    padding: 0 1rem;
+  }
+}
+'''
+        
+        (self.project_root / "src" / "frontend" / "styles" / "App.css").write_text(app_css)
+        
+        # index.html
+        index_html = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Manager Pro - Built with Grace IDE</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="/src/frontend/index.js"></script>
+</body>
+</html>
+'''
+        
+        (self.project_root / "public" / "index.html").write_text(index_html)
+        print("✓ Created React frontend")
+    
+    def _create_api_server(self):
+        """Create API endpoints"""
+        # API Router
+        api_router_py = '''"""API Router for Task Manager"""
+
+from fastapi import APIRouter
+
+from .endpoints import auth, users, tasks, tags
+
+api_router = APIRouter()
+
+# Include endpoint routers
+api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(users.router, prefix="/users", tags=["Users"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
+api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
+'''
+        
+        (self.project_root / "src" / "api" / "__init__.py").write_text(api_router_py)
+        
+        # Create endpoints directory
+        endpoints_dir = self.project_root / "src" / "api" / "endpoints"
+        endpoints_dir.mkdir(exist_ok=True)
+        (endpoints_dir / "__init__.py").write_text("")
+        
+        # Tasks endpoint
+        tasks_endpoint_py = '''"""Task API endpoints"""
+
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from src.backend.database import get_db
+from src.backend.models import Task, User
+from src.api.auth import get_current_user
+from src.schemas.task import TaskCreate, TaskUpdate, TaskResponse
+
+router = APIRouter()
+
+
+@router.get("/", response_model=List[TaskResponse])
+async def get_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    status: Optional[str] = Query(None),
+    priority: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
+):
+    """Get all tasks for current user with optional filtering"""
+    query = db.query(Task).filter(Task.owner_id == current_user.id)
+    
+    if status:
+        query = query.filter(Task.status == status)
+    if priority:
+        query = query.filter(Task.priority == priority)
+    
+    tasks = query.offset(skip).limit(limit).all()
+    return tasks
+
+
+@router.post("/", response_model=TaskResponse)
+async def create_task(
+    task: TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new task"""
+    db_task = Task(
+        **task.dict(),
+        owner_id=current_user.id
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific task"""
+    task = db.query(Task).filter(
+        Task.id == task_id,
+        Task.owner_id == current_user.id
+    ).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return task
+
+
+@router.put("/{task_id}", response_model=TaskResponse)
+async def update_task(
+    task_id: int,
+    task_update: TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a task"""
+    task = db.query(Task).filter(
+        Task.id == task_id,
+        Task.owner_id == current_user.id
+    ).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    for field, value in task_update.dict(exclude_unset=True).items():
+        setattr(task, field, value)
+    
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.delete("/{task_id}")
+async def delete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a task"""
+    task = db.query(Task).filter(
+        Task.id == task_id,
+        Task.owner_id == current_user.id
+    ).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    db.delete(task)
+    db.commit()
+    return {"message": "Task deleted successfully"}
+
+
+@router.post("/{task_id}/complete")
+async def complete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark a task as completed"""
+    task = db.query(Task).filter(
+        Task.id == task_id,
+        Task.owner_id == current_user.id
+    ).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    task.status = "completed"
+    task.completed_at = func.now()
+    
+    db.commit()
+    db.refresh(task)
+    return {"message": "Task completed", "task": task}
+'''
+        
+        (endpoints_dir / "tasks.py").write_text(tasks_endpoint_py)
+        print("✓ Created API endpoints")
+    
+    def _create_database_schema(self):
+        """Create database schema files"""
+        # SQL schema
+        schema_sql = """-- Task Manager Database Schema
+-- PostgreSQL
+
+-- Create database
+CREATE DATABASE taskmanager;
+
+-- Use database
+\\c taskmanager;
+
+-- Create users table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_superuser BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create tasks table
+CREATE TABLE tasks (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    priority VARCHAR(10) DEFAULT 'medium',
+    due_date TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create tags table
+CREATE TABLE tags (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    color VARCHAR(7) DEFAULT '#6366f1'
+);
+
+-- Create task_tags junction table
+CREATE TABLE task_tags (
+    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+    tag_id INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, tag_id)
+);
+
+-- Create indexes
+CREATE INDEX idx_tasks_owner_id ON tasks(owner_id);
+CREATE INDEX idx_tasks_status ON tasks(status);
+CREATE INDEX idx_tasks_priority ON tasks(priority);
+CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+
+-- Create update trigger for updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert sample data
+INSERT INTO tags (name, color) VALUES
+    ('Work', '#ef4444'),
+    ('Personal', '#10b981'),
+    ('Urgent', '#f59e0b'),
+    ('Meeting', '#6366f1'),
+    ('Research', '#8b5cf6');
+"""
+        
+        (self.project_root / "database" / "schema.sql").write_text(schema_sql)
+        
+        # Alembic configuration
+        alembic_ini = """# Alembic Configuration
+
+[alembic]
+script_location = database/migrations
+prepend_sys_path = .
+version_path_separator = os
+
+[post_write_hooks]
+hooks = black
+black.type = console_scripts
+black.entrypoint = black
+black.options = -l 100
+
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+"""
+        
+        (self.project_root / "alembic.ini").write_text(alembic_ini)
+        print("✓ Created database schema")
+    
+    def _create_tests(self):
+        """Create test files"""
+        # Unit test for task service
+        test_tasks_py = '''"""Unit tests for task service"""
+
+import pytest
+from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+
+from src.backend.models import Task, User
+from src.services.task_service import TaskService
+
+
+@pytest.fixture
+def sample_user(db_session: Session) -> User:
+    """Create a sample user for testing"""
+    user = User(
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed_password"
+    )
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+@pytest.fixture
+def sample_task(db_session: Session, sample_user: User) -> Task:
+    """Create a sample task for testing"""
+    task = Task(
+        title="Test Task",
+        description="This is a test task",
+        status="pending",
+        priority="medium",
+        owner_id=sample_user.id
+    )
+    db_session.add(task)
+    db_session.commit()
+    return task
+
+
+class TestTaskService:
+    """Test cases for TaskService"""
+    
+    def test_create_task(self, db_session: Session, sample_user: User):
+        """Test creating a new task"""
+        service = TaskService(db_session)
+        
+        task_data = {
+            "title": "New Task",
+            "description": "Description",
+            "priority": "high"
+        }
+        
+        task = service.create_task(sample_user.id, task_data)
+        
+        assert task.title == "New Task"
+        assert task.priority == "high"
+        assert task.owner_id == sample_user.id
+        assert task.status == "pending"
+    
+    def test_get_user_tasks(self, db_session: Session, sample_user: User, sample_task: Task):
+        """Test getting all tasks for a user"""
+        service = TaskService(db_session)
+        
+        # Create additional tasks
+        for i in range(3):
+            task = Task(
+                title=f"Task {i}",
+                owner_id=sample_user.id
+            )
+            db_session.add(task)
+        db_session.commit()
+        
+        tasks = service.get_user_tasks(sample_user.id)
+        
+        assert len(tasks) == 4  # Including sample_task
+        assert all(task.owner_id == sample_user.id for task in tasks)
+    
+    def test_update_task(self, db_session: Session, sample_task: Task):
+        """Test updating a task"""
+        service = TaskService(db_session)
+        
+        updates = {
+            "title": "Updated Task",
+            "status": "in_progress"
+        }
+        
+        updated_task = service.update_task(sample_task.id, updates)
+        
+        assert updated_task.title == "Updated Task"
+        assert updated_task.status == "in_progress"
+        assert updated_task.description == sample_task.description  # Unchanged
+    
+    def test_delete_task(self, db_session: Session, sample_task: Task):
+        """Test deleting a task"""
+        service = TaskService(db_session)
+        task_id = sample_task.id
+        
+        service.delete_task(task_id)
+        
+        # Verify task is deleted
+        deleted_task = db_session.query(Task).filter(Task.id == task_id).first()
+        assert deleted_task is None
+    
+    def test_complete_task(self, db_session: Session, sample_task: Task):
+        """Test marking a task as completed"""
+        service = TaskService(db_session)
+        
+        completed_task = service.complete_task(sample_task.id)
+        
+        assert completed_task.status == "completed"
+        assert completed_task.completed_at is not None
+        assert isinstance(completed_task.completed_at, datetime)
+    
+    def test_get_overdue_tasks(self, db_session: Session, sample_user: User):
+        """Test getting overdue tasks"""
+        service = TaskService(db_session)
+        
+        # Create overdue task
+        overdue_task = Task(
+            title="Overdue Task",
+            owner_id=sample_user.id,
+            due_date=datetime.now() - timedelta(days=1)
+        )
+        
+        # Create future task
+        future_task = Task(
+            title="Future Task",
+            owner_id=sample_user.id,
+            due_date=datetime.now() + timedelta(days=1)
+        )
+        
+        db_session.add_all([overdue_task, future_task])
+        db_session.commit()
+        
+        overdue_tasks = service.get_overdue_tasks(sample_user.id)
+        
+        assert len(overdue_tasks) == 1
+        assert overdue_tasks[0].title == "Overdue Task"
+'''
+        
+        (self.project_root / "tests" / "unit" / "test_tasks.py").write_text(test_tasks_py)
+        
+        # Integration test
+        test_api_py = '''"""Integration tests for API endpoints"""
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from src.main import app
+from src.backend.models import User
+
+
+@pytest.fixture
+def client():
+    """Create test client"""
+    return TestClient(app)
+
+
+@pytest.fixture
+def auth_headers(client: TestClient, db_session: Session) -> dict:
+    """Get authentication headers for test user"""
+    # Create test user
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "testuser",
+            "email": "test@example.com",
+            "password": "testpass123"
+        }
+    )
+    assert response.status_code == 201
+    
+    # Login
+    response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "testuser",
+            "password": "testpass123"
+        }
+    )
+    assert response.status_code == 200
+    
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+class TestTaskAPI:
+    """Test task API endpoints"""
+    
+    def test_create_task(self, client: TestClient, auth_headers: dict):
+        """Test creating a task via API"""
+        response = client.post(
+            "/api/v1/tasks/",
+            json={
+                "title": "API Test Task",
+                "description": "Created via API",
+                "priority": "high"
+            },
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "API Test Task"
+        assert data["priority"] == "high"
+        assert "id" in data
+    
+    def test_get_tasks(self, client: TestClient, auth_headers: dict):
+        """Test getting tasks list"""
+        # Create some tasks first
+        for i in range(3):
+            client.post(
+                "/api/v1/tasks/",
+                json={"title": f"Task {i}"},
+                headers=auth_headers
+            )
+        
+        # Get tasks
+        response = client.get("/api/v1/tasks/", headers=auth_headers)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 3
+    
+    def test_update_task(self, client: TestClient, auth_headers: dict):
+        """Test updating a task"""
+        # Create task
+        create_response = client.post(
+            "/api/v1/tasks/",
+            json={"title": "Original Title"},
+            headers=auth_headers
+        )
+        task_id = create_response.json()["id"]
+        
+        # Update task
+        response = client.put(
+            f"/api/v1/tasks/{task_id}",
+            json={"title": "Updated Title"},
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "Updated Title"
+    
+    def test_delete_task(self, client: TestClient, auth_headers: dict):
+        """Test deleting a task"""
+        # Create task
+        create_response = client.post(
+            "/api/v1/tasks/",
+            json={"title": "To Delete"},
+            headers=auth_headers
+        )
+        task_id = create_response.json()["id"]
+        
+        # Delete task
+        response = client.delete(
+            f"/api/v1/tasks/{task_id}",
+            headers=auth_headers
+        )
+        
+        assert response.status_code == 200
+        
+        # Verify deletion
+        get_response = client.get(
+            f"/api/v1/tasks/{task_id}",
+            headers=auth_headers
+        )
+        assert get_response.status_code == 404
+    
+    def test_unauthorized_access(self, client: TestClient):
+        """Test accessing API without authentication"""
+        response = client.get("/api/v1/tasks/")
+        assert response.status_code == 401
+'''
+        
+        (self.project_root / "tests" / "integration" / "test_api.py").write_text(test_api_py)
+        
+        # Test configuration
+        conftest_py = '''"""Pytest configuration and fixtures"""
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from src.backend.database import Base
+
+
+@pytest.fixture(scope="session")
+def db_engine():
+    """Create test database engine"""
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(scope="function")
+def db_session(db_engine):
+    """Create test database session"""
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    session = SessionLocal()
+    yield session
+    session.rollback()
+    session.close()
+'''
+        
+        (self.project_root / "tests" / "conftest.py").write_text(conftest_py)
+        print("✓ Created test suites")
+    
+    def _create_documentation(self):
+        """Create documentation files"""
+        # API documentation
+        api_docs_md = """# Task Manager Pro API Documentation
+
+## Overview
+
+The Task Manager Pro API provides a RESTful interface for managing tasks, users, and tags.
+
+Base URL: `http://localhost:8000/api/v1`
+
+## Authentication
+
+The API uses JWT (JSON Web Token) authentication. Include the token in the Authorization header:
+
+```
+Authorization: Bearer <your-token>
+```
+
+## Endpoints
+
+### Authentication
+
+#### Register User
+```
+POST /auth/register
+```
+
+Request body:
+```json
+{
+  "username": "johndoe",
+  "email": "john@example.com",
+  "password": "securepassword"
+}
+```
+
+#### Login
+```
+POST /auth/login
+```
+
+Request body (form-data):
+- username: string
+- password: string
+
+Response:
+```json
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "token_type": "bearer"
+}
+```
+
+### Tasks
+
+#### List Tasks
+```
+GET /tasks/
+```
+
+Query parameters:
+- status: string (pending, in_progress, completed)
+- priority: string (low, medium, high)
+- skip: integer (default: 0)
+- limit: integer (default: 100, max: 100)
+
+#### Create Task
+```
+POST /tasks/
+```
+
+Request body:
+```json
+{
+  "title": "New Task",
+  "description": "Task description",
+  "priority": "medium",
+  "due_date": "2024-12-31T23:59:59Z"
+}
+```
+
+#### Get Task
+```
+GET /tasks/{task_id}
+```
+
+#### Update Task
+```
+PUT /tasks/{task_id}
+```
+
+Request body (partial update supported):
+```json
+{
+  "title": "Updated Title",
+  "status": "in_progress"
+}
+```
+
+#### Delete Task
+```
+DELETE /tasks/{task_id}
+```
+
+#### Complete Task
+```
+POST /tasks/{task_id}/complete
+```
+
+## Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "detail": "Error message here"
+}
+```
+
+Common HTTP status codes:
+- 200: Success
+- 201: Created
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 500: Internal Server Error
+
+## Rate Limiting
+
+API requests are limited to:
+- 1000 requests per hour for authenticated users
+- 100 requests per hour for unauthenticated users
+
+## Webhooks
+
+Configure webhooks to receive real-time updates:
+
+```
+POST /webhooks/
+```
+
+Request body:
+```json
+{
+  "url": "https://your-domain.com/webhook",
+  "events": ["task.created", "task.updated", "task.completed"]
+}
+```
+"""
+        
+        (self.project_root / "docs" / "api.md").write_text(api_docs_md)
+        
+        # Architecture documentation
+        architecture_md = """# Task Manager Pro Architecture
+
+## System Overview
+
+Task Manager Pro follows a modern, scalable architecture with clear separation of concerns.
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   React SPA     │────▶│   FastAPI       │────▶│   PostgreSQL    │
+│   (Frontend)    │     │   (Backend)     │     │   (Database)    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │     Redis       │
+                        │    (Cache)      │
+                        └─────────────────┘
+```
+
+## Technology Stack
+
+### Backend
+- **FastAPI**: Modern Python web framework
+- **SQLAlchemy**: ORM for database operations
+- **Alembic**: Database migration tool
+- **Pydantic**: Data validation
+- **JWT**: Authentication
+
+### Frontend
+- **React**: UI library
+- **React Router**: Client-side routing
+- **Axios**: HTTP client
+- **Context API**: State management
+
+### Infrastructure
+- **PostgreSQL**: Primary database
+- **Redis**: Caching and session storage
+- **Docker**: Containerization
+- **Nginx**: Reverse proxy
+
+## Design Patterns
+
+### Repository Pattern
+Abstracts data access logic:
+
+```python
+class TaskRepository:
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def get_by_id(self, task_id: int) -> Task:
+        return self.db.query(Task).filter(Task.id == task_id).first()
+```
+
+### Service Layer
+Business logic separation:
+
+```python
+class TaskService:
+    def __init__(self, repository: TaskRepository):
+        self.repository = repository
+    
+    def complete_task(self, task_id: int):
+        task = self.repository.get_by_id(task_id)
+        task.status = "completed"
+        task.completed_at = datetime.now()
+        return task
+```
+
+### Dependency Injection
+FastAPI's dependency system:
+
+```python
+def get_task_service(db: Session = Depends(get_db)) -> TaskService:
+    repository = TaskRepository(db)
+    return TaskService(repository)
+```
+
+## Security Considerations
+
+1. **Authentication**: JWT tokens with expiration
+2. **Authorization**: Role-based access control
+3. **Data Validation**: Pydantic models
+4. **SQL Injection**: Parameterized queries via SQLAlchemy
+5. **XSS Protection**: React's built-in escaping
+6. **HTTPS**: SSL/TLS in production
+7. **Rate Limiting**: Prevent abuse
+
+## Scalability
+
+### Horizontal Scaling
+- Stateless API servers
+- Load balancer (Nginx)
+- Session storage in Redis
+
+### Database Optimization
+- Connection pooling
+- Query optimization
+- Read replicas for scaling reads
+
+### Caching Strategy
+- Redis for frequently accessed data
+- Cache invalidation on updates
+- TTL for automatic expiration
+
+## Monitoring
+
+- **Logging**: Structured logs with correlation IDs
+- **Metrics**: Prometheus + Grafana
+- **Tracing**: OpenTelemetry
+- **Alerts**: Based on SLOs
+"""
+        
+        (self.project_root / "docs" / "architecture.md").write_text(architecture_md)
+        print("✓ Created documentation")
+    
+    def _create_deployment_configs(self):
+        """Create deployment configuration files"""
+        # Docker Compose for development
+        docker_compose_yml = """version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: taskmanager-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/taskmanager
+      - REDIS_URL=redis://redis:6379/0
+      - APP_ENV=development
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./src:/app/src
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: taskmanager-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api/v1
+    volumes:
+      - ./src/frontend:/app/src
+      - ./public:/app/public
+    command: npm start
+
+  db:
+    image: postgres:15-alpine
+    container_name: taskmanager-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=taskmanager
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: taskmanager-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  nginx:
+    image: nginx:alpine
+    container_name: taskmanager-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
+  redis_data:
+"""
+        
+        (self.project_root / "docker-compose.yml").write_text(docker_compose_yml)
+        
+        # Dockerfile for backend
+        dockerfile = """FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \\
+    gcc \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Run application
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+"""
+        
+        (self.project_root / "Dockerfile").write_text(dockerfile)
+        
+        # Nginx configuration
+        nginx_conf = """events {
+    worker_connections 1024;
+}
+
+http {
+    upstream backend {
+        server backend:8000;
+    }
+
+    upstream frontend {
+        server frontend:3000;
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+
+        # Frontend
+        location / {
+            proxy_pass http://frontend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+
+        # API
+        location /api {
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # WebSocket support
+        location /ws {
+            proxy_pass http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+    }
+}
+"""
+        
+        (self.project_root / "nginx.conf").write_text(nginx_conf)
+        print("✓ Created deployment configs")
+    
+    def _create_grace_ide_config(self):
+        """Create Grace_IDE specific configuration"""
+        # Grace IDE workspace configuration
+        grace_config = {
+            "name": "Task Manager Pro",
+            "type": "fullstack",
+            "version": "1.0.0",
+            "description": "A comprehensive task management application",
+            "author": "Grace IDE Team",
+            "license": "MIT",
+            
+            "workspace": {
+                "folders": [
+                    {"path": "src/backend", "name": "Backend"},
+                    {"path": "src/frontend", "name": "Frontend"},
+                    {"path": "src/api", "name": "API"},
+                    {"path": "tests", "name": "Tests"},
+                    {"path": "docs", "name": "Documentation"}
+                ],
+                "settings": {
+                    "editor.formatOnSave": True,
+                    "editor.tabSize": 4,
+                    "editor.insertSpaces": True,
+                    "python.linting.enabled": True,
+                    "python.linting.flake8Enabled": True,
+                    "python.formatting.provider": "black"
+                }
+            },
+            
+            "tasks": [
+                {
+                    "name": "Start Backend",
+                    "command": "python src/main.py",
+                    "type": "shell",
+                    "group": "backend"
+                },
+                {
+                    "name": "Start Frontend",
+                    "command": "npm start",
+                    "type": "shell",
+                    "group": "frontend"
+                },
+                {
+                    "name": "Run Tests",
+                    "command": "pytest",
+                    "type": "shell",
+                    "group": "test"
+                },
+                {
+                    "name": "Docker Compose Up",
+                    "command": "docker-compose up",
+                    "type": "shell",
+                    "group": "docker"
+                }
+            ],
+            
+            "launch": [
+                {
+                    "name": "Debug Backend",
+                    "type": "python",
+                    "request": "launch",
+                    "module": "uvicorn",
+                    "args": ["src.main:app", "--reload"],
+                    "env": {"APP_ENV": "development"}
+                },
+                {
+                    "name": "Debug Frontend",
+                    "type": "chrome",
+                    "request": "launch",
+                    "url": "http://localhost:3000",
+                    "webRoot": "${workspaceFolder}/src/frontend"
+                }
+            ],
+            
+            "extensions": {
+                "recommendations": [
+                    "python",
+                    "javascript",
+                    "docker",
+                    "git-integration",
+                    "database-client"
+                ]
+            },
+            
+            "snippets": {
+                "Fast API Endpoint": {
+                    "prefix": "fastapi-endpoint",
+                    "body": [
+                        "@router.${1:get}(\"/${2:path}\")",
+                        "async def ${3:function_name}(",
+                        "    db: Session = Depends(get_db),",
+                        "    current_user: User = Depends(get_current_user)",
+                        "):",
+                        "    \"\"\"${4:Description}\"\"\"",
+                        "    ${5:# Implementation}",
+                        "    return {\"message\": \"Success\"}"
+                    ]
+                },
+                "React Component": {
+                    "prefix": "react-component",
+                    "body": [
+                        "import React from 'react';",
+                        "",
+                        "function ${1:ComponentName}({ ${2:props} }) {",
+                        "    return (",
+                        "        <div className=\"${3:class-name}\">",
+                        "            ${4:// Content}",
+                        "        </div>",
+                        "    );",
+                        "}",
+                        "",
+                        "export default ${1:ComponentName};"
+                    ]
+                }
+            }
+        }
+        
+        (self.project_root / ".grace" / "workspace.json").write_text(
+            json.dumps(grace_config, indent=2)
+        )
+        
+        # Create run configurations
+        run_configs = {
+            "configurations": [
+                {
+                    "name": "Full Stack",
+                    "type": "compound",
+                    "configurations": ["Backend", "Frontend"]
+                },
+                {
+                    "name": "Backend",
+                    "type": "python",
+                    "command": "python src/main.py"
+                },
+                {
+                    "name": "Frontend",
+                    "type": "npm",
+                    "command": "start"
+                },
+                {
+                    "name": "Tests",
+                    "type": "pytest",
+                    "args": ["-v", "--cov=src"]
+                }
+            ]
+        }
+        
+        (self.project_root / ".grace" / "run.json").write_text(
+            json.dumps(run_configs, indent=2)
+        )
+        print("✓ Created Grace_IDE configuration")
+
+
+# Scripts directory
+def create_scripts():
+    """Create utility scripts"""
+    scripts_dir = Path("./sample-project/scripts")
+    scripts_dir.mkdir(exist_ok=True)
+    
+    # Database setup script
+    setup_db_py = '''#!/usr/

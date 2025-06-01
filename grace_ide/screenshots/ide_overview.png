@@ -1,0 +1,213 @@
+# Grace_IDE Overview Screenshot (ide_overview.png)
+
+## Screenshot Description
+
+This screenshot shows the main Grace_IDE interface with a full development session in progress, demonstrating the IDE's comprehensive features and modern design.
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ Grace_IDE - task-manager-pro                                          □ ▢ ✕ │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ File  Edit  View  Git  Debug  Terminal  Tools  Help            🔍 Search...    │
+├─┬───┬─────────────────────────────────────────────────────────────────────┬────┤
+│ │ 📁│ EXPLORER                                    OUTLINE               │ 🤖 │
+│ │ 🔍│ ▼ TASK-MANAGER-PRO                         ▼ Classes              │ AI │
+│A│ 🐛│   ▼ 📁 src                                   • TaskService       │    │
+│C│ 🔧│     ▼ 📁 backend                             • UserController    │ 💡 │
+│T│ 📦│       ▼ 📁 api                             ▼ Functions           │    │
+│I│ 🧩│         📄 auth.py                           • create_task()     │ 🛡️ │
+│V│   │         📄 tasks.py ←                        • authenticate()    │    │
+│I│   │         📄 users.py                          • get_user_tasks()  │ 📊 │
+│T│   │       📁 models                            ▼ Variables           │    │
+│Y│   │       📁 services                            • db_session       │ 🎯 │
+│ │   │     ▼ 📁 frontend                            • current_user     │    │
+│B│   │       ▼ 📁 components                                            │    │
+│A│   │         📄 TaskList.jsx                                         │    │
+│R│   │         📄 TaskForm.jsx                                         │    │
+├─┴───┴───────────────────────────────────────────────────────────────────┴────┤
+│ tasks.py × │ auth.py │ TaskList.jsx │ README.md │ docker-compose.yml │ + │   │
+├───────────────────────────────────────────────────────────────────────────────┤
+│  1  from typing import List, Optional                                         │
+│  2  from fastapi import APIRouter, Depends, HTTPException, Query             │
+│  3  from sqlalchemy.orm import Session                                       │
+│  4                                                                            │
+│  5  from src.backend.database import get_db                                  │
+│  6  from src.backend.models import Task, User                                │
+│  7  from src.api.auth import get_current_user                               │
+│  8  from src.schemas.task import TaskCreate, TaskUpdate, TaskResponse        │
+│  9                                                                            │
+│ 10  router = APIRouter()                                                     │
+│ 11                                                                            │
+│ 12  @router.get("/", response_model=List[TaskResponse])                      │
+│ 13  async def get_tasks(                                                     │
+│ 14  │   db: Session = Depends(get_db),                                      │
+│ 15  │   current_user: User = Depends(get_current_user),                     │
+│ 16  │   status: Optional[str] = Query(None),                                │
+│ 17  │   priority: Optional[str] = Query(None),                              │
+│ 18  │   skip: int = Query(0, ge=0),                                         │
+│ 19  │   limit: int = Query(100, ge=1, le=100)                               │
+│ 20  ):                                                                        │
+│ 21  │   """Get all tasks for current user with optional filtering"""        │
+│ 22  │   query = db.query(Task).filter(Task.owner_id == current_user.id)    │
+│ 23  │                                                                        │
+│ 24  │   if status:                                                          │
+│ 25  │   │   query = query.filter(Task.status == status)                    │
+│ 26  │   if priority:                                          ↙ 2 references│
+│ 27  │   │   query = query.filter(Task.priority == priority)  ← hover: Task  │
+│ 28  │                                               ┌─────────────────────┐  │
+│ 29  │   tasks = query.offset(skip).limit(limit).all│ class Task(Base):   │  │
+│ 30  │   return tasks                                │   """Task model"""  │  │
+│ 31                                                  │   id: int           │  │
+│ 32  @router.post("/", response_model=TaskResponse)  │   title: str        │  │
+│ 33  async def create_task(                          │   status: str       │  │
+│ 34  │   task: TaskCreate,                           │   priority: str     │  │
+│ 35  │   db: Session = Depends(get_db),              └─────────────────────┘  │
+│ 36  │   current_user: User = Depends(get_current_user)         💡 Quick Fix │
+│ 37  ):                                                   • Add type annotation│
+│ 38  │   """Create a new task"""                         • Extract to method  │
+│ 39  │   db_task = Task(                                 • Add error handling │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  JUPYTER  │ COPILOT  SECURITY     │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ ▶ ~/task-manager-pro (main) $                                                │
+│ > python src/main.py                                                         │
+│ INFO:     Started server process [28435]                                     │
+│ INFO:     Waiting for application startup.                                   │
+│ INFO:     Application startup complete.                                      │
+│ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)    │
+│                                                                              │
+├───────────────────────────────────────────────────────────────────────────────┤
+│ Ln 27, Col 45  Spaces: 4  UTF-8  Python  main ⚡  🔔 2  ✓ Prettier  🐍 3.11 │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Visual Elements Description
+
+#### 1. Title Bar
+- **Project name**: "task-manager-pro" 
+- **Window controls**: Minimize, maximize, close buttons
+- **Clean, modern design** with dark theme
+
+#### 2. Menu Bar
+- **Traditional menus**: File, Edit, View, Git, Debug, Terminal, Tools, Help
+- **Global search bar** on the right with search icon
+- **Integrated Git** menu for version control
+
+#### 3. Activity Bar (Left)
+- **Icons with labels**:
+  - 📁 Explorer (active)
+  - 🔍 Search
+  - 🐛 Debug
+  - 🔧 Extensions
+  - 📦 Packages
+  - 🧩 Plugins
+
+#### 4. Primary Sidebar - File Explorer
+- **Tree view** with collapsible folders
+- **File type icons**: Different icons for .py, .jsx, .md files
+- **Active file indicator**: Arrow pointing to currently open file
+- **Clean typography** with proper indentation
+- **Hover effects** on files
+
+#### 5. Secondary Sidebar - Outline View
+- **Code structure visualization**:
+  - Classes with methods
+  - Functions with parameters
+  - Variables in scope
+- **Collapsible sections**
+- **Click-to-navigate** functionality
+
+#### 6. Right Panel - AI Assistant
+- **AI Assistant** (🤖): Contextual code suggestions
+- **Quick Actions** (💡): Refactoring suggestions
+- **Security Scanner** (🛡️): Real-time vulnerability detection
+- **Metrics** (📊): Code quality indicators
+- **Smart Actions** (🎯): Context-aware operations
+
+#### 7. Editor Area
+- **Tab bar** with multiple open files
+- **Active tab** highlighted
+- **Close buttons** on each tab
+- **"+" button** for new file
+- **Breadcrumb navigation** below tabs
+
+#### 8. Code Editor Features
+- **Syntax highlighting**: Python code with semantic coloring
+- **Line numbers** with subtle styling
+- **Code folding** indicators
+- **Inline documentation** on hover
+- **IntelliSense popup** showing class definition
+- **Quick fix suggestions** with lightbulb icon
+- **Reference counter** ("2 references" indicator)
+- **Git blame annotations** (subtle)
+
+#### 9. Bottom Panel - Integrated Terminal
+- **Multiple tabs**: Problems, Output, Debug Console, Terminal, Jupyter, Copilot, Security
+- **Active terminal** showing Python server running
+- **Syntax highlighting** in terminal output
+- **Command prompt** with current directory and Git branch
+
+#### 10. Status Bar
+- **Cursor position**: "Ln 27, Col 45"
+- **Indentation**: "Spaces: 4"
+- **Encoding**: "UTF-8"
+- **Language mode**: "Python"
+- **Git branch**: "main ⚡" (with changes)
+- **Notifications**: "🔔 2"
+- **Extensions status**: "✓ Prettier"
+- **Python version**: "🐍 3.11"
+
+### Interactive Features Shown
+
+1. **IntelliSense**:
+   - Hover information for `Task` class
+   - Method signatures
+   - Documentation preview
+   - Type information
+
+2. **Code Navigation**:
+   - Go to definition
+   - Find references
+   - Peek definition
+
+3. **Refactoring**:
+   - Quick fixes menu
+   - Extract method
+   - Add type annotations
+
+4. **Git Integration**:
+   - Branch indicator
+   - File status markers
+   - Inline blame
+
+5. **AI Features**:
+   - Code completion
+   - Suggestion panel
+   - Security analysis
+
+### Color Theme
+
+- **Background**: Deep dark (#0d1117)
+- **Editor**: Slightly lighter (#161b22)
+- **Syntax Colors**:
+  - Keywords: Red (#ff7b72)
+  - Strings: Blue (#a5d6ff)
+  - Functions: Purple (#d2a8ff)
+  - Variables: Orange (#ffa657)
+  - Comments: Gray (#8b949e)
+- **UI Accents**: Blue (#58a6ff)
+- **Success**: Green (#3fb950)
+- **Warnings**: Yellow (#f0883e)
+
+### Modern UI Elements
+
+1. **Smooth animations** for hover states
+2. **Subtle shadows** for depth
+3. **Rounded corners** on panels
+4. **Consistent spacing** throughout
+5. **High contrast** for readability
+6. **Icon consistency** across the interface
+
+This overview demonstrates Grace_IDE as a modern, feature-rich development environment that combines traditional IDE power with modern AI assistance, elegant design, and developer-friendly features. The interface is clean yet information-dense, providing everything a developer needs without clutter.

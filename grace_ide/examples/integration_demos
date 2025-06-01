@@ -1,0 +1,1125 @@
+"""
+Grace_IDE Integration Demos
+Showcases various integrations with external services and tools
+"""
+
+import asyncio
+import json
+from pathlib import Path
+from typing import Dict, List, Any
+
+# Import Grace_IDE components
+from grace_ide.api import create_server
+from grace_ide.api.file_operations import FileOperationsManager
+from grace_ide.api.deployment import DeploymentManager, DeploymentConfig
+from grace_ide.components.consciousness import ConsciousnessEngine
+from grace_ide.components.security import SecurityEngine
+
+
+class IntegrationDemos:
+    """Collection of integration demonstrations"""
+    
+    def __init__(self, workspace_root: str = "./demo_workspace"):
+        self.workspace_root = Path(workspace_root)
+        self.workspace_root.mkdir(exist_ok=True)
+        
+        # Initialize components
+        self.file_ops = FileOperationsManager(str(self.workspace_root))
+        self.deployment = DeploymentManager(str(self.workspace_root))
+        self.consciousness = ConsciousnessEngine(str(self.workspace_root))
+        self.security = SecurityEngine(str(self.workspace_root))
+
+
+# =============================================================================
+# Git Integration Demo
+# =============================================================================
+
+class GitIntegrationDemo:
+    """Demonstrates Git integration capabilities"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+        
+    async def demo_git_workflow(self):
+        """Complete Git workflow demonstration"""
+        print("=== Git Integration Demo ===\n")
+        
+        # Initialize repository
+        repo_path = self.workspace_root / "git_demo"
+        repo_path.mkdir(exist_ok=True)
+        
+        # Create sample files
+        await self._create_sample_project(repo_path)
+        
+        # Initialize Git
+        import git
+        repo = git.Repo.init(repo_path)
+        print(f"✓ Initialized Git repository at {repo_path}")
+        
+        # Configure Git
+        with repo.config_writer() as config:
+            config.set_value("user", "name", "Grace IDE Demo")
+            config.set_value("user", "email", "demo@grace-ide.dev")
+        
+        # Stage and commit files
+        repo.index.add("*")
+        repo.index.commit("Initial commit")
+        print("✓ Created initial commit")
+        
+        # Create branch
+        feature_branch = repo.create_head("feature/new-feature")
+        feature_branch.checkout()
+        print("✓ Created and switched to feature branch")
+        
+        # Make changes
+        readme_path = repo_path / "README.md"
+        with open(readme_path, "a") as f:
+            f.write("\n## New Feature\nThis is a new feature!")
+        
+        # Commit changes
+        repo.index.add(["README.md"])
+        repo.index.commit("Add new feature section")
+        print("✓ Committed changes to feature branch")
+        
+        # Show diff
+        master = repo.heads.master
+        feature = repo.heads["feature/new-feature"]
+        diff = master.commit.diff(feature.commit)
+        
+        print("\n📝 Changes:")
+        for item in diff:
+            print(f"  - Modified: {item.a_path}")
+        
+        # Merge branch
+        master.checkout()
+        repo.index.merge_tree(feature)
+        repo.index.commit("Merge feature/new-feature")
+        print("\n✓ Merged feature branch to master")
+        
+        # Show log
+        print("\n📜 Git Log:")
+        for commit in list(repo.iter_commits())[:5]:
+            print(f"  {commit.hexsha[:7]} - {commit.message.strip()}")
+    
+    async def _create_sample_project(self, path: Path):
+        """Create sample project files"""
+        # README.md
+        readme = path / "README.md"
+        readme.write_text("""# Git Integration Demo
+
+This project demonstrates Git integration with Grace_IDE.
+
+## Features
+- Automatic Git operations
+- Visual diff viewer
+- Branch management
+- Commit history
+""")
+        
+        # Python file
+        main_py = path / "main.py"
+        main_py.write_text("""#!/usr/bin/env python3
+\"\"\"Main application file\"\"\"
+
+def main():
+    print("Hello from Grace_IDE!")
+
+if __name__ == "__main__":
+    main()
+""")
+        
+        # Config file
+        config = path / "config.json"
+        config.write_text(json.dumps({
+            "name": "Git Demo",
+            "version": "1.0.0",
+            "author": "Grace IDE"
+        }, indent=2))
+
+
+# =============================================================================
+# Database Integration Demo
+# =============================================================================
+
+class DatabaseIntegrationDemo:
+    """Demonstrates database integration capabilities"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+        
+    async def demo_sqlite_integration(self):
+        """SQLite database integration demo"""
+        print("\n=== SQLite Integration Demo ===\n")
+        
+        import sqlite3
+        
+        # Create database
+        db_path = self.workspace_root / "demo.db"
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        
+        # Create table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                language TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                stars INTEGER DEFAULT 0
+            )
+        """)
+        print("✓ Created projects table")
+        
+        # Insert sample data
+        projects = [
+            ("Grace IDE", "Python", 1000),
+            ("Neural Network Lib", "Python", 500),
+            ("Web Framework", "JavaScript", 750),
+            ("Mobile App", "Swift", 300),
+            ("Game Engine", "C++", 1200)
+        ]
+        
+        cursor.executemany(
+            "INSERT INTO projects (name, language, stars) VALUES (?, ?, ?)",
+            projects
+        )
+        conn.commit()
+        print(f"✓ Inserted {len(projects)} projects")
+        
+        # Query data
+        print("\n📊 Project Statistics:")
+        cursor.execute("""
+            SELECT language, COUNT(*) as count, SUM(stars) as total_stars
+            FROM projects
+            GROUP BY language
+            ORDER BY total_stars DESC
+        """)
+        
+        for row in cursor.fetchall():
+            print(f"  {row[0]}: {row[1]} projects, {row[2]} total stars")
+        
+        # Visual query builder demo
+        print("\n🔍 Query Builder Demo:")
+        query = self._build_query(
+            table="projects",
+            select=["name", "language", "stars"],
+            where={"stars": (">", 400)},
+            order_by="stars DESC",
+            limit=3
+        )
+        print(f"  Generated Query: {query}")
+        
+        cursor.execute(query)
+        print("\n  Results:")
+        for row in cursor.fetchall():
+            print(f"    - {row[0]} ({row[1]}): ⭐ {row[2]}")
+        
+        conn.close()
+    
+    async def demo_postgres_integration(self):
+        """PostgreSQL integration demo (requires PostgreSQL)"""
+        print("\n=== PostgreSQL Integration Demo ===\n")
+        
+        try:
+            import asyncpg
+            
+            # Connection configuration
+            config = {
+                "host": "localhost",
+                "port": 5432,
+                "user": "graceide",
+                "password": "demo",
+                "database": "graceide_demo"
+            }
+            
+            # Note: This requires PostgreSQL to be running
+            print("ℹ️  This demo requires PostgreSQL to be running")
+            print(f"   Connection: {config['user']}@{config['host']}:{config['port']}/{config['database']}")
+            
+            # Example connection code
+            connection_code = """
+# Connect to PostgreSQL
+conn = await asyncpg.connect(**config)
+
+# Create table
+await conn.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+    )
+''')
+
+# Insert data
+await conn.execute('''
+    INSERT INTO users (username, email) VALUES ($1, $2)
+''', 'grace_user', 'user@grace-ide.dev')
+
+# Query data
+rows = await conn.fetch('SELECT * FROM users')
+for row in rows:
+    print(dict(row))
+
+# Close connection
+await conn.close()
+"""
+            print("\n📝 Example PostgreSQL code:")
+            print(connection_code)
+            
+        except ImportError:
+            print("ℹ️  asyncpg not installed. Install with: pip install asyncpg")
+    
+    def _build_query(self, table: str, select: List[str], 
+                     where: Dict = None, order_by: str = None, 
+                     limit: int = None) -> str:
+        """Simple query builder"""
+        query_parts = [f"SELECT {', '.join(select)}", f"FROM {table}"]
+        
+        if where:
+            conditions = []
+            for field, (op, value) in where.items():
+                if isinstance(value, str):
+                    conditions.append(f"{field} {op} '{value}'")
+                else:
+                    conditions.append(f"{field} {op} {value}")
+            query_parts.append(f"WHERE {' AND '.join(conditions)}")
+        
+        if order_by:
+            query_parts.append(f"ORDER BY {order_by}")
+        
+        if limit:
+            query_parts.append(f"LIMIT {limit}")
+        
+        return " ".join(query_parts)
+
+
+# =============================================================================
+# API Integration Demo
+# =============================================================================
+
+class APIIntegrationDemo:
+    """Demonstrates REST API and GraphQL integration"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+    
+    async def demo_rest_api_client(self):
+        """REST API client demonstration"""
+        print("\n=== REST API Client Demo ===\n")
+        
+        import aiohttp
+        
+        # Create API client code
+        api_client_code = '''
+import aiohttp
+import asyncio
+from typing import Dict, List, Optional
+
+class GitHubAPIClient:
+    """GitHub API v3 client"""
+    
+    def __init__(self, token: Optional[str] = None):
+        self.base_url = "https://api.github.com"
+        self.headers = {
+            "Accept": "application/vnd.github.v3+json"
+        }
+        if token:
+            self.headers["Authorization"] = f"token {token}"
+    
+    async def get_user(self, username: str) -> Dict:
+        """Get user information"""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{self.base_url}/users/{username}",
+                headers=self.headers
+            ) as response:
+                return await response.json()
+    
+    async def get_repos(self, username: str, limit: int = 10) -> List[Dict]:
+        """Get user repositories"""
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{self.base_url}/users/{username}/repos",
+                headers=self.headers,
+                params={"per_page": limit, "sort": "updated"}
+            ) as response:
+                return await response.json()
+    
+    async def create_gist(self, description: str, files: Dict[str, str]) -> Dict:
+        """Create a new gist"""
+        data = {
+            "description": description,
+            "public": True,
+            "files": {
+                filename: {"content": content}
+                for filename, content in files.items()
+            }
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.base_url}/gists",
+                headers=self.headers,
+                json=data
+            ) as response:
+                return await response.json()
+
+# Usage example
+async def demo():
+    client = GitHubAPIClient()
+    
+    # Get user info
+    user = await client.get_user("torvalds")
+    print(f"User: {user['name']} ({user['login']})")
+    print(f"Followers: {user['followers']}")
+    
+    # Get repositories
+    repos = await client.get_repos("torvalds", limit=5)
+    print(f"\\nTop 5 repositories:")
+    for repo in repos:
+        print(f"  - {repo['name']}: ⭐ {repo['stargazers_count']}")
+'''
+        
+        # Save API client
+        api_file = self.workspace_root / "github_api_client.py"
+        api_file.write_text(api_client_code)
+        print(f"✓ Created API client at {api_file}")
+        
+        # Demo API testing interface
+        print("\n🧪 API Testing Interface:")
+        print("  - Method: GET")
+        print("  - URL: https://api.github.com/users/grace-ide")
+        print("  - Headers: Accept: application/vnd.github.v3+json")
+        print("\n  Response Preview:")
+        print("  {")
+        print('    "login": "grace-ide",')
+        print('    "name": "Grace IDE",')
+        print('    "bio": "Intelligent Development Environment",')
+        print('    "public_repos": 42,')
+        print('    "followers": 1337')
+        print("  }")
+    
+    async def demo_graphql_client(self):
+        """GraphQL client demonstration"""
+        print("\n=== GraphQL Client Demo ===\n")
+        
+        graphql_code = '''
+import aiohttp
+from typing import Dict, Any
+
+class GraphQLClient:
+    """Generic GraphQL client"""
+    
+    def __init__(self, endpoint: str, headers: Dict[str, str] = None):
+        self.endpoint = endpoint
+        self.headers = headers or {}
+    
+    async def query(self, query: str, variables: Dict[str, Any] = None) -> Dict:
+        """Execute GraphQL query"""
+        data = {"query": query}
+        if variables:
+            data["variables"] = variables
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self.endpoint,
+                json=data,
+                headers=self.headers
+            ) as response:
+                result = await response.json()
+                if "errors" in result:
+                    raise Exception(f"GraphQL errors: {result['errors']}")
+                return result["data"]
+    
+    async def introspect(self) -> Dict:
+        """Get GraphQL schema"""
+        introspection_query = """
+        query IntrospectionQuery {
+            __schema {
+                types {
+                    name
+                    kind
+                    description
+                    fields {
+                        name
+                        type {
+                            name
+                            kind
+                        }
+                    }
+                }
+            }
+        }
+        """
+        return await self.query(introspection_query)
+
+# Example GitHub GraphQL query
+GITHUB_USER_QUERY = """
+query GetUser($login: String!) {
+    user(login: $login) {
+        name
+        bio
+        avatarUrl
+        repositories(first: 5, orderBy: {field: STARGAZERS, direction: DESC}) {
+            nodes {
+                name
+                description
+                stargazerCount
+                primaryLanguage {
+                    name
+                    color
+                }
+            }
+        }
+    }
+}
+"""
+
+# Usage
+async def demo():
+    client = GraphQLClient(
+        endpoint="https://api.github.com/graphql",
+        headers={"Authorization": "Bearer YOUR_TOKEN"}
+    )
+    
+    data = await client.query(
+        GITHUB_USER_QUERY,
+        variables={"login": "torvalds"}
+    )
+    print(data)
+'''
+        
+        # Save GraphQL client
+        graphql_file = self.workspace_root / "graphql_client.py"
+        graphql_file.write_text(graphql_code)
+        print(f"✓ Created GraphQL client at {graphql_file}")
+        
+        # Visual query builder
+        print("\n🔨 GraphQL Query Builder:")
+        print("  Type: Query")
+        print("  Fields:")
+        print("    ✓ user(login: $login)")
+        print("      ✓ name")
+        print("      ✓ bio") 
+        print("      ✓ repositories(first: 5)")
+        print("        ✓ nodes")
+        print("          ✓ name")
+        print("          ✓ stargazerCount")
+
+
+# =============================================================================
+# Cloud Integration Demo
+# =============================================================================
+
+class CloudIntegrationDemo:
+    """Demonstrates cloud service integrations"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+    
+    async def demo_aws_integration(self):
+        """AWS integration demonstration"""
+        print("\n=== AWS Integration Demo ===\n")
+        
+        # S3 integration example
+        s3_code = '''
+import boto3
+from pathlib import Path
+
+class S3Integration:
+    """AWS S3 integration for Grace_IDE"""
+    
+    def __init__(self, bucket_name: str):
+        self.s3 = boto3.client('s3')
+        self.bucket_name = bucket_name
+    
+    def upload_project(self, project_path: Path, prefix: str = ""):
+        """Upload entire project to S3"""
+        uploaded_files = []
+        
+        for file_path in project_path.rglob("*"):
+            if file_path.is_file():
+                key = f"{prefix}/{file_path.relative_to(project_path)}"
+                self.s3.upload_file(
+                    str(file_path),
+                    self.bucket_name,
+                    key
+                )
+                uploaded_files.append(key)
+        
+        return uploaded_files
+    
+    def download_project(self, prefix: str, local_path: Path):
+        """Download project from S3"""
+        paginator = self.s3.get_paginator('list_objects_v2')
+        
+        for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                local_file = local_path / key.replace(prefix + '/', '')
+                local_file.parent.mkdir(parents=True, exist_ok=True)
+                
+                self.s3.download_file(
+                    self.bucket_name,
+                    key,
+                    str(local_file)
+                )
+
+# Lambda function deployment
+class LambdaDeployment:
+    """Deploy functions to AWS Lambda"""
+    
+    def __init__(self):
+        self.lambda_client = boto3.client('lambda')
+    
+    def deploy_function(self, function_name: str, zip_file: Path, handler: str):
+        """Deploy or update Lambda function"""
+        with open(zip_file, 'rb') as f:
+            zip_content = f.read()
+        
+        try:
+            # Update existing function
+            response = self.lambda_client.update_function_code(
+                FunctionName=function_name,
+                ZipFile=zip_content
+            )
+        except self.lambda_client.exceptions.ResourceNotFoundException:
+            # Create new function
+            response = self.lambda_client.create_function(
+                FunctionName=function_name,
+                Runtime='python3.9',
+                Role='arn:aws:iam::123456789012:role/lambda-role',
+                Handler=handler,
+                Code={'ZipFile': zip_content},
+                Timeout=300,
+                MemorySize=512
+            )
+        
+        return response
+'''
+        
+        # Save AWS integration
+        aws_file = self.workspace_root / "aws_integration.py"
+        aws_file.write_text(s3_code)
+        print(f"✓ Created AWS integration at {aws_file}")
+        
+        # Deployment configuration
+        print("\n☁️  AWS Deployment Configuration:")
+        print("  Service: Lambda")
+        print("  Runtime: Python 3.9")
+        print("  Memory: 512 MB")
+        print("  Timeout: 5 minutes")
+        print("  Trigger: API Gateway")
+        print("\n  Environment Variables:")
+        print("    - GRACE_ENV: production")
+        print("    - GRACE_REGION: us-east-1")
+    
+    async def demo_docker_integration(self):
+        """Docker integration demonstration"""
+        print("\n=== Docker Integration Demo ===\n")
+        
+        # Create Dockerfile
+        dockerfile_content = '''FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \\
+    git \\
+    curl \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Expose ports
+EXPOSE 8080 8765
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV GRACE_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run Grace_IDE
+CMD ["python", "-m", "grace_ide.api"]
+'''
+        
+        dockerfile = self.workspace_root / "Dockerfile"
+        dockerfile.write_text(dockerfile_content)
+        print(f"✓ Created Dockerfile at {dockerfile}")
+        
+        # Docker Compose configuration
+        compose_content = '''version: '3.8'
+
+services:
+  grace-ide:
+    build: .
+    container_name: grace-ide
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "8765:8765"
+    volumes:
+      - ./workspace:/workspace
+      - grace-data:/data
+    environment:
+      - GRACE_WORKSPACE=/workspace
+      - POSTGRES_URL=postgresql://grace:secret@postgres:5432/graceide
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - grace-network
+
+  postgres:
+    image: postgres:13-alpine
+    container_name: grace-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=grace
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=graceide
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - grace-network
+
+  redis:
+    image: redis:6-alpine
+    container_name: grace-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - grace-network
+
+volumes:
+  grace-data:
+  postgres-data:
+  redis-data:
+
+networks:
+  grace-network:
+    driver: bridge
+'''
+        
+        compose_file = self.workspace_root / "docker-compose.yml"
+        compose_file.write_text(compose_content)
+        print(f"✓ Created docker-compose.yml at {compose_file}")
+        
+        print("\n🐳 Docker Commands:")
+        print("  Build: docker-compose build")
+        print("  Start: docker-compose up -d")
+        print("  Logs:  docker-compose logs -f grace-ide")
+        print("  Stop:  docker-compose down")
+
+
+# =============================================================================
+# CI/CD Integration Demo
+# =============================================================================
+
+class CICDIntegrationDemo:
+    """Demonstrates CI/CD pipeline integrations"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+    
+    async def demo_github_actions(self):
+        """GitHub Actions integration"""
+        print("\n=== GitHub Actions Integration Demo ===\n")
+        
+        # Create workflow directory
+        workflow_dir = self.workspace_root / ".github" / "workflows"
+        workflow_dir.mkdir(parents=True, exist_ok=True)
+        
+        # CI workflow
+        ci_workflow = '''name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, '3.10']
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Run linting
+      run: |
+        flake8 grace_ide/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        black --check grace_ide/
+    
+    - name: Run security scan
+      run: |
+        pip install bandit safety
+        bandit -r grace_ide/
+        safety check
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v --cov=grace_ide --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build Docker image
+      run: |
+        docker build -t grace-ide:${{ github.sha }} .
+    
+    - name: Run Trivy security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: grace-ide:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+'''
+        
+        ci_file = workflow_dir / "ci.yml"
+        ci_file.write_text(ci_workflow)
+        print(f"✓ Created CI workflow at {ci_file}")
+        
+        # CD workflow
+        cd_workflow = '''name: CD
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: graceide/grace-ide
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+    
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          ## Changes in this Release
+          - Feature 1
+          - Feature 2
+          - Bug fixes
+        draft: false
+        prerelease: false
+'''
+        
+        cd_file = workflow_dir / "cd.yml"
+        cd_file.write_text(cd_workflow)
+        print(f"✓ Created CD workflow at {cd_file}")
+        
+        print("\n🚀 GitHub Actions Workflows:")
+        print("  - CI: Runs on every push and PR")
+        print("  - CD: Runs on version tags")
+        print("  - Security scanning included")
+        print("  - Multi-version Python testing")
+        print("  - Docker image building")
+
+
+# =============================================================================
+# Plugin System Demo
+# =============================================================================
+
+class PluginSystemDemo:
+    """Demonstrates Grace_IDE plugin system"""
+    
+    def __init__(self, workspace_root: str):
+        self.workspace_root = Path(workspace_root)
+        self.plugins_dir = self.workspace_root / "plugins"
+        self.plugins_dir.mkdir(exist_ok=True)
+    
+    async def create_sample_plugin(self):
+        """Create a sample Grace_IDE plugin"""
+        print("\n=== Plugin System Demo ===\n")
+        
+        # Create plugin directory
+        plugin_dir = self.plugins_dir / "hello-world"
+        plugin_dir.mkdir(exist_ok=True)
+        
+        # Plugin manifest
+        manifest = {
+            "name": "hello-world",
+            "displayName": "Hello World Plugin",
+            "version": "1.0.0",
+            "description": "A simple Grace_IDE plugin demo",
+            "author": "Grace IDE Team",
+            "main": "index.js",
+            "contributes": {
+                "commands": [
+                    {
+                        "command": "helloWorld.sayHello",
+                        "title": "Hello World: Say Hello"
+                    }
+                ],
+                "menus": {
+                    "editor/context": [
+                        {
+                            "command": "helloWorld.sayHello",
+                            "group": "helloWorld"
+                        }
+                    ]
+                },
+                "configuration": {
+                    "title": "Hello World",
+                    "properties": {
+                        "helloWorld.greeting": {
+                            "type": "string",
+                            "default": "Hello from Grace_IDE!",
+                            "description": "Greeting message"
+                        }
+                    }
+                }
+            },
+            "activationEvents": [
+                "onCommand:helloWorld.sayHello"
+            ],
+            "dependencies": {}
+        }
+        
+        manifest_file = plugin_dir / "package.json"
+        manifest_file.write_text(json.dumps(manifest, indent=2))
+        print(f"✓ Created plugin manifest at {manifest_file}")
+        
+        # Plugin main file
+        plugin_code = '''// Hello World Plugin for Grace_IDE
+
+class HelloWorldPlugin {
+    constructor(context) {
+        this.context = context;
+        this.config = context.config;
+    }
+    
+    activate() {
+        console.log('Hello World plugin activated!');
+        
+        // Register command
+        this.context.registerCommand('helloWorld.sayHello', () => {
+            this.sayHello();
+        });
+        
+        // Register status bar item
+        this.statusBarItem = this.context.createStatusBarItem({
+            text: '👋 Hello',
+            tooltip: 'Click to say hello',
+            command: 'helloWorld.sayHello'
+        });
+        this.statusBarItem.show();
+    }
+    
+    sayHello() {
+        const greeting = this.config.get('helloWorld.greeting');
+        
+        // Show notification
+        this.context.showInformationMessage(greeting);
+        
+        // Insert text at cursor
+        const editor = this.context.activeTextEditor;
+        if (editor) {
+            editor.insertText(`// ${greeting}\\n`);
+        }
+    }
+    
+    deactivate() {
+        console.log('Hello World plugin deactivated!');
+        this.statusBarItem.dispose();
+    }
+}
+
+// Export plugin
+module.exports = HelloWorldPlugin;
+'''
+        
+        plugin_file = plugin_dir / "index.js"
+        plugin_file.write_text(plugin_code)
+        print(f"✓ Created plugin code at {plugin_file}")
+        
+        # Plugin API types
+        types_code = '''// Grace_IDE Plugin API Type Definitions
+
+interface PluginContext {
+    // Core APIs
+    config: Configuration;
+    workspace: Workspace;
+    
+    // UI APIs
+    activeTextEditor: TextEditor | undefined;
+    showInformationMessage(message: string): void;
+    showErrorMessage(message: string): void;
+    showWarningMessage(message: string): void;
+    createStatusBarItem(options: StatusBarItemOptions): StatusBarItem;
+    
+    // Registration APIs
+    registerCommand(command: string, callback: Function): Disposable;
+    registerCompletionProvider(selector: DocumentSelector, provider: CompletionProvider): Disposable;
+    registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
+    
+    // Event APIs
+    onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
+    onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
+    onDidSaveTextDocument: Event<TextDocument>;
+}
+
+interface TextEditor {
+    document: TextDocument;
+    selection: Selection;
+    insertText(text: string): void;
+    replaceText(range: Range, text: string): void;
+}
+
+interface TextDocument {
+    uri: string;
+    fileName: string;
+    languageId: string;
+    lineCount: number;
+    getText(range?: Range): string;
+    getLineText(line: number): string;
+}
+'''
+        
+        types_file = plugin_dir / "types.d.ts"
+        types_file.write_text(types_code)
+        print(f"✓ Created type definitions at {types_file}")
+        
+        print("\n🔌 Plugin System Features:")
+        print("  - Command registration")
+        print("  - Menu contributions")
+        print("  - Configuration support")
+        print("  - Status bar items")
+        print("  - Event subscriptions")
+        print("  - Language features")
+
+
+# =============================================================================
+# Main Demo Runner
+# =============================================================================
+
+async def run_all_demos():
+    """Run all integration demonstrations"""
+    workspace = "./integration_demos"
+    
+    print("🚀 Grace_IDE Integration Demonstrations\n")
+    print("=" * 50)
+    
+    # Git Integration
+    git_demo = GitIntegrationDemo(workspace)
+    await git_demo.demo_git_workflow()
+    
+    # Database Integration
+    db_demo = DatabaseIntegrationDemo(workspace)
+    await db_demo.demo_sqlite_integration()
+    await db_demo.demo_postgres_integration()
+    
+    # API Integration
+    api_demo = APIIntegrationDemo(workspace)
+    await api_demo.demo_rest_api_client()
+    await api_demo.demo_graphql_client()
+    
+    # Cloud Integration
+    cloud_demo = CloudIntegrationDemo(workspace)
+    await cloud_demo.demo_aws_integration()
+    await cloud_demo.demo_docker_integration()
+    
+    # CI/CD Integration
+    cicd_demo = CICDIntegrationDemo(workspace)
+    await cicd_demo.demo_github_actions()
+    
+    # Plugin System
+    plugin_demo = PluginSystemDemo(workspace)
+    await plugin_demo.create_sample_plugin()
+    
+    print("\n" + "=" * 50)
+    print("✅ All demonstrations completed!")
+    print(f"\n📁 Demo files created in: {Path(workspace).absolute()}")
+
+
+if __name__ == "__main__":
+    # Run demonstrations
+    asyncio.run(run_all_demos())

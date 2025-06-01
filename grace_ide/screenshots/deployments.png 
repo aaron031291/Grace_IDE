@@ -1,0 +1,167 @@
+# Grace_IDE Deployment Screenshot (deployments.png)
+
+## Screenshot Description
+
+This screenshot shows the Grace_IDE Deployment Interface, demonstrating the integrated deployment capabilities of the IDE.
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Grace_IDE - Deployment Manager                                    □ ▢ ✕ │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ File  Edit  View  Tools  Deploy  Help                                      │
+├───────────────┬─────────────────────────────────────────────────────────────┤
+│               │                                                             │
+│  🚀 Deploy    │  ╔═══════════════════════════════════════════════════════╗ │
+│               │  ║            Deployment Configuration                    ║ │
+│  📦 Local     │  ╠═══════════════════════════════════════════════════════╣ │
+│               │  ║                                                       ║ │
+│  🐳 Docker    │  ║  Project: task-manager-pro                           ║ │
+│               │  ║  Type:    ● Docker  ○ Local  ○ Cloud  ○ Static      ║ │
+│  ☁️  Cloud     │  ║                                                       ║ │
+│               │  ║  Environment: [Production ▼]                          ║ │
+│  📊 Monitor   │  ║  Port:        [8080      ]                           ║ │
+│               │  ║                                                       ║ │
+│  📜 History   │  ║  ┌─────────────────────────────────────────────────┐ ║ │
+│               │  ║  │ Environment Variables                          │ ║ │
+│               │  ║  ├─────────────────────────────────────────────────┤ ║ │
+│               │  ║  │ NODE_ENV      = production                     │ ║ │
+│               │  ║  │ DATABASE_URL  = postgresql://...              │ ║ │
+│               │  ║  │ REDIS_URL     = redis://...                   │ ║ │
+│               │  ║  │ API_KEY       = ••••••••                      │ ║ │
+│               │  ║  │ [+ Add Variable]                              │ ║ │
+│               │  ║  └─────────────────────────────────────────────────┘ ║ │
+│               │  ║                                                       ║ │
+│               │  ║  Build Command:  [npm run build               ]      ║ │
+│               │  ║  Start Command:  [npm start                   ]      ║ │
+│               │  ║                                                       ║ │
+│               │  ║  [Deploy Now]  [Save Config]  [Cancel]              ║ │
+│               │  ╚═══════════════════════════════════════════════════════╝ │
+│               │                                                             │
+│               │  ╔═══════════════════════════════════════════════════════╗ │
+│               │  ║            Active Deployments                         ║ │
+│               │  ╠═══════════════════════════════════════════════════════╣ │
+│               │  ║                                                       ║ │
+│               │  ║  🟢 task-manager-prod-20240601120000                  ║ │
+│               │  ║     Type: Docker | Status: Running                   ║ │
+│               │  ║     URL: https://taskmanager.grace-ide.cloud         ║ │
+│               │  ║     Started: 2 hours ago | CPU: 15% | RAM: 256MB    ║ │
+│               │  ║     [View Logs] [Stop] [Restart]                    ║ │
+│               │  ║                                                       ║ │
+│               │  ║  🟡 task-manager-staging-20240601080000              ║ │
+│               │  ║     Type: Docker | Status: Idle                      ║ │
+│               │  ║     URL: https://staging.taskmanager.grace-ide.cloud ║ │
+│               │  ║     Started: 6 hours ago | CPU: 2% | RAM: 128MB     ║ │
+│               │  ║     [View Logs] [Stop] [Restart]                    ║ │
+│               │  ║                                                       ║ │
+│               │  ║  🔵 task-manager-dev-20240531180000                  ║ │
+│               │  ║     Type: Local | Status: Running                    ║ │
+│               │  ║     URL: http://localhost:3000                       ║ │
+│               │  ║     Started: 1 day ago | CPU: 8% | RAM: 512MB       ║ │
+│               │  ║     [View Logs] [Stop] [Restart]                    ║ │
+│               │  ╚═══════════════════════════════════════════════════════╝ │
+│               │                                                             │
+├───────────────┴─────────────────────────────────────────────────────────────┤
+│ Terminal │ Output │ Problems │ Debug Console                    Deployment │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ > Building Docker image...                                                  │
+│ Step 1/8 : FROM node:18-alpine                                            │
+│ Step 2/8 : WORKDIR /app                                                   │
+│ Step 3/8 : COPY package*.json ./                                          │
+│ Step 4/8 : RUN npm ci --only=production                                   │
+│ Step 5/8 : COPY . .                                                       │
+│ Step 6/8 : RUN npm run build                                              │
+│ Step 7/8 : EXPOSE 8080                                                    │
+│ Step 8/8 : CMD ["npm", "start"]                                           │
+│ Successfully built 3a7f2d8e9b1c                                           │
+│ > Pushing to registry...                                                   │
+│ > Deploying to Grace Cloud...                                             │
+│ ✓ Deployment successful!                                                   │
+│ > Application available at: https://taskmanager.grace-ide.cloud           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Visual Elements Description
+
+#### Top Section - Deployment Configuration
+- **Clean form interface** with grouped settings
+- **Radio buttons** for deployment type selection
+- **Dropdown** for environment selection (Development, Staging, Production)
+- **Secure input fields** for sensitive environment variables (masked)
+- **Syntax-highlighted** command inputs
+- **Action buttons** with clear primary/secondary styling
+
+#### Middle Section - Active Deployments
+- **Status indicators**: 
+  - 🟢 Green for running/healthy
+  - 🟡 Yellow for idle/warning
+  - 🔵 Blue for development
+  - 🔴 Red for stopped/error
+- **Real-time metrics**: CPU usage, memory consumption
+- **Quick actions**: One-click logs, stop, restart
+- **Deployment history** with timestamps
+- **URLs** for quick access to deployed applications
+
+#### Bottom Section - Deployment Output
+- **Real-time terminal output** showing deployment progress
+- **Color-coded messages**:
+  - White: Normal output
+  - Green: Success messages
+  - Yellow: Warnings
+  - Red: Errors
+- **Progress indicators** for long-running operations
+- **Scrollable output** with automatic scroll-to-bottom
+
+### Interactive Features Shown
+
+1. **Deployment Types**:
+   - Local folder deployment
+   - Docker containerization
+   - Cloud platforms (AWS, GCP, Azure)
+   - Static site hosting
+
+2. **Environment Management**:
+   - Multiple environment configs
+   - Secure secret handling
+   - Environment variable editor
+
+3. **Monitoring**:
+   - Real-time resource usage
+   - Health status checks
+   - Performance metrics
+   - Log streaming
+
+4. **Actions**:
+   - One-click deployment
+   - Rollback capabilities
+   - Scale up/down
+   - Domain management
+
+### Color Scheme
+
+- **Background**: Dark theme (#0d1117)
+- **Cards**: Elevated surfaces (#161b22)
+- **Primary Action**: Blue (#58a6ff)
+- **Success**: Green (#3fb950)
+- **Warning**: Yellow (#f0883e)
+- **Error**: Red (#f85149)
+- **Text**: High contrast white (#c9d1d9)
+
+### UI Components
+
+- **Sidebar Navigation**: Icon-based deployment menu
+- **Tab Interface**: Multiple deployment views
+- **Form Controls**: Modern, accessible inputs
+- **Status Cards**: Information-rich deployment cards
+- **Terminal View**: Integrated output console
+- **Progress Indicators**: Loading states and progress bars
+
+### Responsive Design
+
+The interface adapts to different screen sizes:
+- **Desktop**: Full three-column layout
+- **Tablet**: Collapsible sidebar, stacked cards
+- **Mobile**: Single column, swipeable sections
+
+This deployment interface demonstrates Grace_IDE's commitment to making deployment as simple as writing code, with powerful features accessible through an intuitive UI.

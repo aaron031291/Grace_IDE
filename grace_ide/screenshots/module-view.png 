@@ -1,0 +1,247 @@
+# Grace_IDE Module View Screenshot (module-view.png)
+
+## Screenshot Description
+
+This screenshot displays Grace_IDE's advanced Module View, showing the intelligent code visualization and dependency analysis features.
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ Grace_IDE - Module Architecture View                                   □ ▢ ✕ │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ File  Edit  View  Navigate  Refactor  Analyze  Tools  Window  Help           │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ 🔍 Search modules...                    [Tree View] [Graph View] [List View]  │
+├───────────────────────┬─────────────────────────────────────────────────────────┤
+│ MODULE EXPLORER       │                   MODULE: task_service.py              │
+│                       │  ┌─────────────────────────────────────────────────┐  │
+│ ▼ 📦 Backend         │  │ Dependencies (5)          Dependents (3)        │  │
+│   ▼ 📁 api           │  ├─────────────────────────────────────────────────┤  │
+│     📄 __init__.py   │  │ → database.py             ← api/tasks.py         │  │
+│     📄 auth.py       │  │ → models.py               ← api/users.py         │  │
+│     📄 tasks.py      │  │ → schemas/task.py         ← tests/test_tasks.py  │  │
+│     📄 users.py      │  │ → utils/logger.py                                │  │
+│   ▼ 📁 services      │  │ → utils/date_utils.py                            │  │
+│     📄 task_service  │  └─────────────────────────────────────────────────┘  │
+│     📄 user_service  │                                                        │
+│   ▼ 📁 models        │  ╔═══════════════════════════════════════════════════╗ │
+│     📄 task.py       │  ║            Dependency Graph                       ║ │
+│     📄 user.py       │  ╠═══════════════════════════════════════════════════╣ │
+│                       │  ║                                                   ║ │
+│ ▼ 📦 Frontend        │  ║              [models.py]                          ║ │
+│   ▼ 📁 components    │  ║                  ↑                                ║ │
+│     📄 TaskList      │  ║         ┌────────┴────────┐                       ║ │
+│     📄 TaskForm      │  ║         ↓                 ↓                       ║ │
+│     📄 Dashboard     │  ║   [task_service.py]  [user_service.py]            ║ │
+│                       │  ║         ↑                 ↑                       ║ │
+│ ▼ 📦 Tests           │  ║         │      ┌──────────┘                       ║ │
+│   📁 unit            │  ║         │      ↓                                  ║ │
+│   📁 integration     │  ║    [api/tasks.py]  [api/users.py]                 ║ │
+│                       │  ║         ↑                 ↑                       ║ │
+│ FILTERS              │  ║         └─────┬───────────┘                       ║ │
+│ ☑ Show Dependencies  │  ║               ↓                                   ║ │
+│ ☑ Show Dependents    │  ║         [api_router.py]                           ║ │
+│ ☐ Show Tests Only    │  ║               ↓                                   ║ │
+│ ☐ Show External      │  ║           [main.py]                               ║ │
+│                       │  ║                                                   ║ │
+│ METRICS              │  ╚═══════════════════════════════════════════════════╝ │
+│ Complexity: Medium    │                                                        │
+│ Coupling: Low         │  ╔═══════════════════════════════════════════════════╗ │
+│ Cohesion: High        │  ║            Module Analysis                        ║ │
+│ Test Coverage: 87%    │  ╠═══════════════════════════════════════════════════╣ │
+│                       │  ║                                                   ║ │
+│ ISSUES (2)           │  ║ 📊 Metrics:                                       ║ │
+│ ⚠️ Circular dependency │  ║   • Lines of Code: 245                           ║ │
+│ ⚠️ Missing tests      │  ║   • Cyclomatic Complexity: 8                     ║ │
+│                       │  ║   • Maintainability Index: 72                    ║ │
+│                       │  ║   • Technical Debt: 2.5 hours                    ║ │
+├───────────────────────┤  ║                                                   ║ │
+│ QUICK ACTIONS        │  ║ 🔍 Code Smells Detected:                          ║ │
+│ 🔧 Refactor Module   │  ║   • Long method: get_user_tasks() (45 lines)     ║ │
+│ 🧪 Generate Tests    │  ║   • Feature envy: accesses User model frequently ║ │
+│ 📊 View Metrics      │  ║                                                   ║ │
+│ 🔄 Update Imports    │  ║ ✅ Best Practices:                                ║ │
+│ 📦 Extract Package   │  ║   • Single Responsibility ✓                      ║ │
+│ 🎯 Find Usages       │  ║   • Dependency Injection ✓                       ║ │
+└───────────────────────┴  ║   • Error Handling ✓                              ║ │
+                           ║   • Type Hints ✓                                  ║ │
+                           ║                                                   ║ │
+                           ║ 💡 Suggestions:                                   ║ │
+                           ║   • Consider extracting TaskRepository class     ║ │
+                           ║   • Add caching for frequently accessed data     ║ │
+                           ║   • Implement async batch operations             ║ │
+                           ╚═══════════════════════════════════════════════════╝ │
+                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ Module: task_service.py | Class Diagram | Sequence | Call Graph | Impact     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ class TaskService:                                                              │
+│     """Service layer for task operations"""                                    │
+│                                                                                 │
+│     def __init__(self, db_session: Session):                                   │
+│         self.db = db_session                                                    │
+│         self.logger = get_logger(__name__)                                      │
+│                                                                                 │
+│     def create_task(self, user_id: int, task_data: dict) -> Task:             │
+│         """Create a new task for user"""                   ├─ 15 usages       │
+│         # Validate user exists                             ├─ 92% coverage     │
+│         user = self.db.query(User).filter(...).first()    ├─ 0.8ms avg time  │
+│         if not user:                                                            │
+│             raise UserNotFoundError(user_id)                                   │
+│                                                                                 │
+│ ┌─ Minimap ──┐  ┌─ Call Hierarchy ─────────────────────────────────────────┐ │
+│ │············│  │ create_task()                                             │ │
+│ │▓▓▓▓▓▓▓▓▓▓▓▓│  │  ├─ called by: api.tasks.create_task() (line 35)       │ │
+│ │············│  │  ├─ called by: tests.test_create_task() (line 42)       │ │
+│ │▓▓▓▓▓▓······│  │  └─ calls:                                              │ │
+│ │············│  │      ├─ db.query() (line 12)                            │ │
+│ │▓▓▓▓▓▓▓▓▓▓▓▓│  │      ├─ validate_task_data() (line 15)                 │ │
+│ └────────────┘  │      └─ db.commit() (line 23)                           │ │
+│                 └──────────────────────────────────────────────────────────┘ │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ 87% Coverage | 8 Methods | 3 Dependencies | Last Modified: 2 hours ago       │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Visual Elements Description
+
+#### 1. Top Section - Module Information
+- **Dependencies and Dependents** lists showing bidirectional relationships
+- **Clean card-based design** with clear separation
+- **Arrow indicators** (→ for dependencies, ← for dependents)
+- **File paths** as clickable links
+
+#### 2. Dependency Graph Visualization
+- **Interactive node graph** showing module relationships
+- **Hierarchical layout** from entry point (main.py) down
+- **Color coding**:
+  - Blue nodes: Core modules
+  - Green nodes: API endpoints
+  - Purple nodes: Service layer
+  - Gray nodes: Utilities
+- **Animated connections** showing data flow
+- **Hover effects** revealing additional information
+
+#### 3. Left Sidebar - Module Explorer
+- **Tree structure** of entire project
+- **Package/folder icons** (📦) for organization
+- **File type indicators**
+- **Active module highlighting**
+- **Collapsible sections**
+
+#### 4. Module Filters
+- **Checkboxes** for view customization:
+  - Show/hide dependencies
+  - Show/hide dependents
+  - Test-only view
+  - External dependencies
+- **Real-time filtering** updates graph
+
+#### 5. Module Metrics Panel
+- **Complexity indicators** with color coding:
+  - Green: Good
+  - Yellow: Warning
+  - Red: Needs attention
+- **Coverage percentage** with progress bar
+- **Coupling/Cohesion** analysis
+- **Issue detection** with severity icons
+
+#### 6. Module Analysis Panel
+- **Code metrics**:
+  - Lines of code
+  - Cyclomatic complexity
+  - Maintainability index
+  - Technical debt estimation
+- **Code smell detection** with specific examples
+- **Best practices checklist** with checkmarks
+- **AI-powered suggestions** for improvements
+
+#### 7. Quick Actions Sidebar
+- **One-click operations**:
+  - 🔧 Refactor module
+  - 🧪 Generate missing tests
+  - 📊 Detailed metrics view
+  - 🔄 Auto-update imports
+  - 📦 Extract to package
+  - 🎯 Find all usages
+
+#### 8. Code View with Enhancements
+- **Inline metrics** for each method:
+  - Usage count
+  - Test coverage
+  - Average execution time
+- **Minimap** for quick navigation
+- **Call hierarchy panel** showing:
+  - Who calls this method
+  - What this method calls
+  - Line number references
+- **Syntax highlighting** with semantic colors
+
+#### 9. Bottom Status Bar
+- **Module statistics**: Coverage, methods, dependencies
+- **Last modified time**
+- **View mode tabs**: Class Diagram, Sequence, Call Graph, Impact Analysis
+
+### Interactive Features
+
+1. **Graph Interactions**:
+   - Click nodes to navigate to modules
+   - Drag to reorganize layout
+   - Zoom in/out for large projects
+   - Filter by depth level
+
+2. **Code Intelligence**:
+   - Hover for quick documentation
+   - Click to jump to definition
+   - Right-click for refactoring menu
+
+3. **Real-time Updates**:
+   - Live dependency tracking
+   - Instant metric calculations
+   - Dynamic issue detection
+
+4. **Visualization Modes**:
+   - Tree view for hierarchy
+   - Graph view for relationships
+   - List view for scanning
+   - Matrix view for coupling analysis
+
+### Color Scheme
+
+- **Background**: Dark theme consistency (#0d1117)
+- **Cards**: Elevated surfaces (#161b22)
+- **Graph nodes**: 
+  - Primary: Blue (#58a6ff)
+  - Secondary: Green (#3fb950)
+  - Warning: Yellow (#f0883e)
+  - Error: Red (#f85149)
+- **Connections**: Subtle gray with hover highlighting
+- **Metrics**:
+  - Good: Green
+  - Warning: Yellow
+  - Critical: Red
+
+### Advanced Features Shown
+
+1. **Architecture Analysis**:
+   - Automatic circular dependency detection
+   - Coupling and cohesion metrics
+   - Dead code identification
+
+2. **Refactoring Support**:
+   - Safe rename with preview
+   - Extract method/class
+   - Move module with import updates
+
+3. **Test Integration**:
+   - Coverage visualization
+   - Test generation suggestions
+   - Test impact analysis
+
+4. **Performance Insights**:
+   - Method execution timing
+   - Memory usage patterns
+   - Bottleneck identification
+
+This Module View demonstrates Grace_IDE's powerful code analysis capabilities, helping developers understand and improve their code architecture through visual tools and intelligent insights. It transforms complex codebases into understandable, maintainable systems.
