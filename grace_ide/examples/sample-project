@@ -34,6 +34,7 @@ class SampleProjectGenerator:
         self._create_documentation()
         self._create_deployment_configs()
         self._create_grace_ide_config()
+        self._create_scripts()
         
         print(f"\n✅ Sample project created at: {self.project_root.absolute()}")
     
@@ -46,14 +47,18 @@ class SampleProjectGenerator:
             "src/frontend/components",
             "src/frontend/styles",
             "src/api",
+            "src/api/endpoints",
             "src/utils",
+            "src/schemas",
             "tests",
             "tests/unit",
             "tests/integration",
             "docs",
             "database",
+            "database/migrations",
             "scripts",
             "config",
+            "public",
             ".grace",
         ]
         
@@ -186,6 +191,7 @@ alembic==1.12.1
 psycopg2-binary==2.9.9
 redis==5.0.1
 pydantic==2.5.0
+pydantic-settings==2.1.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.6
@@ -385,17 +391,26 @@ if __name__ == "__main__":
         (self.project_root / "src" / "main.py").write_text(main_py)
         
         # Create __init__.py files
-        for directory in ["src", "src/backend", "src/api", "src/utils"]:
+        for directory in ["src", "src/backend", "src/api", "src/utils", "src/schemas"]:
             (self.project_root / directory / "__init__.py").write_text("")
         
         # Backend models
         models_py = '''"""Database models for Task Manager"""
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from .database import Base
+
+
+# Association table for many-to-many relationship
+task_tags = Table(
+    'task_tags',
+    Base.metadata,
+    Column('task_id', Integer, ForeignKey('tasks.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
+)
 
 
 class User(Base):
@@ -436,7 +451,7 @@ class Task(Base):
     
     # Relationships
     owner = relationship("User", back_populates="tasks")
-    tags = relationship("Tag", secondary="task_tags", back_populates="tasks")
+    tags = relationship("Tag", secondary=task_tags, back_populates="tasks")
 
 
 class Tag(Base):
@@ -448,15 +463,7 @@ class Tag(Base):
     color = Column(String(7), default="#6366f1")  # Hex color
     
     # Relationships
-    tasks = relationship("Task", secondary="task_tags", back_populates="tags")
-
-
-class TaskTag(Base):
-    """Association table for tasks and tags"""
-    __tablename__ = "task_tags"
-    
-    task_id = Column(Integer, ForeignKey("tasks.id"), primary_key=True)
-    tag_id = Column(Integer, ForeignKey("tags.id"), primary_key=True)
+    tasks = relationship("Task", secondary=task_tags, back_populates="tags")
 '''
         
         (self.project_root / "src" / "backend" / "models.py").write_text(models_py)
@@ -557,6 +564,73 @@ def get_db():
 '''
         
         (self.project_root / "src" / "backend" / "database.py").write_text(database_py)
+        
+        # Logger utility
+        logger_py = '''"""Logging configuration"""
+
+import logging
+import sys
+from typing import Any
+
+
+def setup_logger(name: str) -> logging.Logger:
+    """Set up logger with consistent formatting"""
+    logger = logging.getLogger(name)
+    
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    
+    return logger
+'''
+        
+        (self.project_root / "src" / "utils" / "logger.py").write_text(logger_py)
+        
+        # Schemas
+        task_schema_py = '''"""Pydantic schemas for Task"""
+
+from datetime import datetime
+from typing import Optional, List
+from pydantic import BaseModel
+
+
+class TaskBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    status: str = "pending"
+    priority: str = "medium"
+    due_date: Optional[datetime] = None
+
+
+class TaskCreate(TaskBase):
+    pass
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    due_date: Optional[datetime] = None
+
+
+class TaskResponse(TaskBase):
+    id: int
+    owner_id: int
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+'''
+        
+        (self.project_root / "src" / "schemas" / "task.py").write_text(task_schema_py)
+        
         print("✓ Created Python backend")
     
     def _create_web_frontend(self):
@@ -564,8 +638,6 @@ def get_db():
         # Main App component
         app_jsx = '''import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { TaskProvider } from './context/TaskContext';
-import { AuthProvider } from './context/AuthContext';
 
 // Components
 import Header from './components/Header';
@@ -573,32 +645,26 @@ import Dashboard from './components/Dashboard';
 import TaskList from './components/TaskList';
 import TaskForm from './components/TaskForm';
 import Login from './components/Login';
-import Register from './components/Register';
 
 // Styles
 import './styles/App.css';
 
 function App() {
   return (
-    <AuthProvider>
-      <TaskProvider>
-        <Router>
-          <div className="App">
-            <Header />
-            <main className="main-content">
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/tasks" element={<TaskList />} />
-                <Route path="/tasks/new" element={<TaskForm />} />
-                <Route path="/tasks/:id/edit" element={<TaskForm />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-              </Routes>
-            </main>
-          </div>
-        </Router>
-      </TaskProvider>
-    </AuthProvider>
+    <Router>
+      <div className="App">
+        <Header />
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/tasks" element={<TaskList />} />
+            <Route path="/tasks/new" element={<TaskForm />} />
+            <Route path="/tasks/:id/edit" element={<TaskForm />} />
+            <Route path="/login" element={<Login />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
 }
 
@@ -607,47 +673,182 @@ export default App;
         
         (self.project_root / "src" / "frontend" / "App.js").write_text(app_jsx)
         
+        # Header Component
+        header_jsx = '''import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
+function Header() {
+  const location = useLocation();
+
+  return (
+    <header className="header">
+      <div className="header-content">
+        <Link to="/" className="logo">
+          Task Manager Pro
+        </Link>
+        <nav>
+          <ul className="nav-links">
+            <li>
+              <Link 
+                to="/" 
+                className={location.pathname === '/' ? 'active' : ''}
+              >
+                Dashboard
+              </Link>
+            </li>
+            <li>
+              <Link 
+                to="/tasks" 
+                className={location.pathname === '/tasks' ? 'active' : ''}
+              >
+                Tasks
+              </Link>
+            </li>
+            <li>
+              <Link to="/tasks/new" className="btn btn-primary">
+                New Task
+              </Link>
+            </li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+export default Header;
+'''
+        
+        (self.project_root / "src" / "frontend" / "components" / "Header.js").write_text(header_jsx)
+        
+        # Dashboard Component
+        dashboard_jsx = '''import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+function Dashboard() {
+  const [stats, setStats] = useState({
+    total: 0,
+    completed: 0,
+    pending: 0,
+    overdue: 0
+  });
+  const [recentTasks, setRecentTasks] = useState([]);
+
+  useEffect(() => {
+    // Fetch dashboard data
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('/api/v1/tasks/stats');
+        setStats(response.data.stats);
+        setRecentTasks(response.data.recent_tasks);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  return (
+    <div className="dashboard">
+      <h1>Dashboard</h1>
+      
+      <div className="stats-grid">
+        <div className="stat-card">
+          <h3>Total Tasks</h3>
+          <p className="stat-number">{stats.total}</p>
+        </div>
+        <div className="stat-card">
+          <h3>Completed</h3>
+          <p className="stat-number text-success">{stats.completed}</p>
+        </div>
+        <div className="stat-card">
+          <h3>Pending</h3>
+          <p className="stat-number text-warning">{stats.pending}</p>
+        </div>
+        <div className="stat-card">
+          <h3>Overdue</h3>
+          <p className="stat-number text-danger">{stats.overdue}</p>
+        </div>
+      </div>
+
+      <div className="recent-tasks">
+        <h2>Recent Tasks</h2>
+        {recentTasks.length === 0 ? (
+          <p>No recent tasks</p>
+        ) : (
+          <div className="task-list">
+            {recentTasks.map(task => (
+              <div key={task.id} className="task-item">
+                <h4>{task.title}</h4>
+                <p>{task.description}</p>
+                <span className={`priority priority-${task.priority}`}>
+                  {task.priority}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default Dashboard;
+'''
+        
+        (self.project_root / "src" / "frontend" / "components" / "Dashboard.js").write_text(dashboard_jsx)
+        
         # Task List Component
         task_list_jsx = '''import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useTasks } from '../context/TaskContext';
-import TaskItem from './TaskItem';
-import FilterBar from './FilterBar';
+import axios from 'axios';
 
 function TaskList() {
-  const { tasks, loading, fetchTasks } = useTasks();
-  const [filteredTasks, setFilteredTasks] = useState([]);
-  const [filters, setFilters] = useState({
-    status: 'all',
-    priority: 'all',
-    search: ''
-  });
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  useEffect(() => {
-    let filtered = [...tasks];
-
-    // Apply filters
-    if (filters.status !== 'all') {
-      filtered = filtered.filter(task => task.status === filters.status);
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('/api/v1/tasks/');
+      setTasks(response.data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (filters.priority !== 'all') {
-      filtered = filtered.filter(task => task.priority === filters.priority);
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'all') return true;
+    return task.status === filter;
+  });
+
+  const handleComplete = async (taskId) => {
+    try {
+      await axios.post(`/api/v1/tasks/${taskId}/complete`);
+      fetchTasks(); // Refresh tasks
+    } catch (error) {
+      console.error('Error completing task:', error);
     }
+  };
 
-    if (filters.search) {
-      filtered = filtered.filter(task =>
-        task.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-        task.description?.toLowerCase().includes(filters.search.toLowerCase())
-      );
+  const handleDelete = async (taskId) => {
+    if (window.confirm('Are you sure you want to delete this task?')) {
+      try {
+        await axios.delete(`/api/v1/tasks/${taskId}`);
+        fetchTasks(); // Refresh tasks
+      } catch (error) {
+        console.error('Error deleting task:', error);
+      }
     }
-
-    setFilteredTasks(filtered);
-  }, [tasks, filters]);
+  };
 
   if (loading) {
     return <div className="loading">Loading tasks...</div>;
@@ -662,7 +863,32 @@ function TaskList() {
         </Link>
       </div>
 
-      <FilterBar filters={filters} onFilterChange={setFilters} />
+      <div className="filter-bar">
+        <button 
+          className={filter === 'all' ? 'active' : ''} 
+          onClick={() => setFilter('all')}
+        >
+          All
+        </button>
+        <button 
+          className={filter === 'pending' ? 'active' : ''} 
+          onClick={() => setFilter('pending')}
+        >
+          Pending
+        </button>
+        <button 
+          className={filter === 'in_progress' ? 'active' : ''} 
+          onClick={() => setFilter('in_progress')}
+        >
+          In Progress
+        </button>
+        <button 
+          className={filter === 'completed' ? 'active' : ''} 
+          onClick={() => setFilter('completed')}
+        >
+          Completed
+        </button>
+      </div>
 
       <div className="task-list">
         {filteredTasks.length === 0 ? (
@@ -672,7 +898,34 @@ function TaskList() {
           </div>
         ) : (
           filteredTasks.map(task => (
-            <TaskItem key={task.id} task={task} />
+            <div key={task.id} className="task-item">
+              <div className="task-item-header">
+                <h3 className="task-title">{task.title}</h3>
+                <span className={`task-priority priority-${task.priority}`}>
+                  {task.priority}
+                </span>
+              </div>
+              <p className="task-description">{task.description}</p>
+              <div className="task-actions">
+                <Link to={`/tasks/${task.id}/edit`} className="btn btn-secondary">
+                  Edit
+                </Link>
+                {task.status !== 'completed' && (
+                  <button 
+                    onClick={() => handleComplete(task.id)}
+                    className="btn btn-success"
+                  >
+                    Complete
+                  </button>
+                )}
+                <button 
+                  onClick={() => handleDelete(task.id)}
+                  className="btn btn-danger"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
           ))
         )}
       </div>
@@ -770,6 +1023,38 @@ body {
   width: 100%;
 }
 
+/* Dashboard */
+.dashboard {
+  background-color: white;
+  border-radius: var(--border-radius);
+  padding: 2rem;
+  box-shadow: var(--box-shadow);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.stat-card {
+  background-color: var(--light-color);
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  text-align: center;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: bold;
+  margin-top: 0.5rem;
+}
+
+.text-success { color: var(--success-color); }
+.text-warning { color: var(--secondary-color); }
+.text-danger { color: var(--danger-color); }
+
 /* Task List Styles */
 .task-list-container {
   background-color: white;
@@ -785,6 +1070,28 @@ body {
   margin-bottom: 2rem;
 }
 
+.filter-bar {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.filter-bar button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.filter-bar button.active,
+.filter-bar button:hover {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
 .task-list {
   display: flex;
   flex-direction: column;
@@ -796,7 +1103,6 @@ body {
   border-radius: var(--border-radius);
   padding: 1rem;
   transition: all 0.3s;
-  cursor: pointer;
 }
 
 .task-item:hover {
@@ -815,6 +1121,11 @@ body {
   font-size: 1.1rem;
   font-weight: 500;
   color: var(--dark-color);
+}
+
+.task-description {
+  color: #6b7280;
+  margin-bottom: 1rem;
 }
 
 .task-priority {
@@ -837,6 +1148,11 @@ body {
 .priority-low {
   background-color: #dbeafe;
   color: #2563eb;
+}
+
+.task-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* Buttons */
@@ -870,34 +1186,22 @@ body {
   background-color: #e5e7eb;
 }
 
-/* Forms */
-.form-group {
-  margin-bottom: 1.5rem;
+.btn-success {
+  background-color: var(--success-color);
+  color: white;
 }
 
-.form-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--dark-color);
+.btn-success:hover {
+  background-color: #059669;
 }
 
-.form-input,
-.form-textarea,
-.form-select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: var(--border-radius);
-  font-size: 1rem;
-  transition: border-color 0.3s;
+.btn-danger {
+  background-color: var(--danger-color);
+  color: white;
 }
 
-.form-input:focus,
-.form-textarea:focus,
-.form-select:focus {
-  outline: none;
-  border-color: var(--primary-color);
+.btn-danger:hover {
+  background-color: #dc2626;
 }
 
 /* Loading State */
@@ -939,12 +1243,33 @@ body {
   .main-content {
     padding: 0 1rem;
   }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .task-actions {
+    flex-wrap: wrap;
+  }
 }
 '''
         
         (self.project_root / "src" / "frontend" / "styles" / "App.css").write_text(app_css)
         
+        # index.js
+        index_js = '''import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+const container = document.getElementById('root');
+const root = createRoot(container);
+root.render(<App />);
+'''
+        
+        (self.project_root / "src" / "frontend" / "index.js").write_text(index_js)
+        
         # index.html
+        (self.project_root / "public").mkdir(exist_ok=True)
         index_html = '''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -955,7 +1280,6 @@ body {
 </head>
 <body>
   <div id="root"></div>
-  <script src="/src/frontend/index.js"></script>
 </body>
 </html>
 '''
@@ -970,23 +1294,15 @@ body {
 
 from fastapi import APIRouter
 
-from .endpoints import auth, users, tasks, tags
+from .endpoints import tasks
 
 api_router = APIRouter()
 
 # Include endpoint routers
-api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"])
-api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
 '''
         
         (self.project_root / "src" / "api" / "__init__.py").write_text(api_router_py)
-        
-        # Create endpoints directory
-        endpoints_dir = self.project_root / "src" / "api" / "endpoints"
-        endpoints_dir.mkdir(exist_ok=True)
-        (endpoints_dir / "__init__.py").write_text("")
         
         # Tasks endpoint
         tasks_endpoint_py = '''"""Task API endpoints"""
@@ -994,10 +1310,10 @@ api_router.include_router(tags.router, prefix="/tags", tags=["Tags"])
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from src.backend.database import get_db
 from src.backend.models import Task, User
-from src.api.auth import get_current_user
 from src.schemas.task import TaskCreate, TaskUpdate, TaskResponse
 
 router = APIRouter()
@@ -1006,14 +1322,13 @@ router = APIRouter()
 @router.get("/", response_model=List[TaskResponse])
 async def get_tasks(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
     status: Optional[str] = Query(None),
     priority: Optional[str] = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100)
 ):
-    """Get all tasks for current user with optional filtering"""
-    query = db.query(Task).filter(Task.owner_id == current_user.id)
+    """Get all tasks with optional filtering"""
+    query = db.query(Task)
     
     if status:
         query = query.filter(Task.status == status)
@@ -1027,14 +1342,10 @@ async def get_tasks(
 @router.post("/", response_model=TaskResponse)
 async def create_task(
     task: TaskCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Create a new task"""
-    db_task = Task(
-        **task.dict(),
-        owner_id=current_user.id
-    )
+    db_task = Task(**task.dict())
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
@@ -1044,14 +1355,10 @@ async def create_task(
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(
     task_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Get a specific task"""
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.owner_id == current_user.id
-    ).first()
+    task = db.query(Task).filter(Task.id == task_id).first()
     
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -1063,14 +1370,10 @@ async def get_task(
 async def update_task(
     task_id: int,
     task_update: TaskUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Update a task"""
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.owner_id == current_user.id
-    ).first()
+    task = db.query(Task).filter(Task.id == task_id).first()
     
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -1086,14 +1389,10 @@ async def update_task(
 @router.delete("/{task_id}")
 async def delete_task(
     task_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Delete a task"""
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.owner_id == current_user.id
-    ).first()
+    task = db.query(Task).filter(Task.id == task_id).first()
     
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -1106,14 +1405,10 @@ async def delete_task(
 @router.post("/{task_id}/complete")
 async def complete_task(
     task_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Mark a task as completed"""
-    task = db.query(Task).filter(
-        Task.id == task_id,
-        Task.owner_id == current_user.id
-    ).first()
+    task = db.query(Task).filter(Task.id == task_id).first()
     
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -1124,9 +1419,32 @@ async def complete_task(
     db.commit()
     db.refresh(task)
     return {"message": "Task completed", "task": task}
+
+
+@router.get("/stats", response_model=dict)
+async def get_task_stats(db: Session = Depends(get_db)):
+    """Get task statistics for dashboard"""
+    total = db.query(Task).count()
+    completed = db.query(Task).filter(Task.status == "completed").count()
+    pending = db.query(Task).filter(Task.status == "pending").count()
+    
+    stats = {
+        "total": total,
+        "completed": completed,
+        "pending": pending,
+        "overdue": 0  # TODO: Calculate overdue tasks
+    }
+    
+    # Get recent tasks
+    recent_tasks = db.query(Task).order_by(Task.created_at.desc()).limit(5).all()
+    
+    return {
+        "stats": stats,
+        "recent_tasks": recent_tasks
+    }
 '''
         
-        (endpoints_dir / "tasks.py").write_text(tasks_endpoint_py)
+        (self.project_root / "src" / "api" / "endpoints" / "tasks.py").write_text(tasks_endpoint_py)
         print("✓ Created API endpoints")
     
     def _create_database_schema(self):
@@ -1162,7 +1480,7 @@ CREATE TABLE tasks (
     priority VARCHAR(10) DEFAULT 'medium',
     due_date TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,
-    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -1212,339 +1530,59 @@ INSERT INTO tags (name, color) VALUES
 """
         
         (self.project_root / "database" / "schema.sql").write_text(schema_sql)
-        
-        # Alembic configuration
-        alembic_ini = """# Alembic Configuration
-
-[alembic]
-script_location = database/migrations
-prepend_sys_path = .
-version_path_separator = os
-
-[post_write_hooks]
-hooks = black
-black.type = console_scripts
-black.entrypoint = black
-black.options = -l 100
-
-[loggers]
-keys = root,sqlalchemy,alembic
-
-[handlers]
-keys = console
-
-[formatters]
-keys = generic
-
-[logger_root]
-level = WARN
-handlers = console
-qualname =
-
-[logger_sqlalchemy]
-level = WARN
-handlers =
-qualname = sqlalchemy.engine
-
-[logger_alembic]
-level = INFO
-handlers =
-qualname = alembic
-
-[handler_console]
-class = StreamHandler
-args = (sys.stderr,)
-level = NOTSET
-formatter = generic
-
-[formatter_generic]
-format = %(levelname)-5.5s [%(name)s] %(message)s
-datefmt = %H:%M:%S
-"""
-        
-        (self.project_root / "alembic.ini").write_text(alembic_ini)
         print("✓ Created database schema")
     
     def _create_tests(self):
         """Create test files"""
         # Unit test for task service
-        test_tasks_py = '''"""Unit tests for task service"""
+        test_tasks_py = '''"""Unit tests for task operations"""
 
 import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from src.backend.models import Task, User
-from src.services.task_service import TaskService
 
 
-@pytest.fixture
-def sample_user(db_session: Session) -> User:
-    """Create a sample user for testing"""
-    user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password"
-    )
-    db_session.add(user)
-    db_session.commit()
-    return user
-
-
-@pytest.fixture
-def sample_task(db_session: Session, sample_user: User) -> Task:
-    """Create a sample task for testing"""
-    task = Task(
-        title="Test Task",
-        description="This is a test task",
-        status="pending",
-        priority="medium",
-        owner_id=sample_user.id
-    )
-    db_session.add(task)
-    db_session.commit()
-    return task
-
-
-class TestTaskService:
-    """Test cases for TaskService"""
+class TestTaskOperations:
+    """Test cases for Task operations"""
     
-    def test_create_task(self, db_session: Session, sample_user: User):
+    def test_create_task(self, db_session: Session):
         """Test creating a new task"""
-        service = TaskService(db_session)
+        task = Task(
+            title="Test Task",
+            description="This is a test task",
+            priority="high"
+        )
         
-        task_data = {
-            "title": "New Task",
-            "description": "Description",
-            "priority": "high"
-        }
+        db_session.add(task)
+        db_session.commit()
         
-        task = service.create_task(sample_user.id, task_data)
-        
-        assert task.title == "New Task"
+        assert task.id is not None
+        assert task.title == "Test Task"
         assert task.priority == "high"
-        assert task.owner_id == sample_user.id
         assert task.status == "pending"
     
-    def test_get_user_tasks(self, db_session: Session, sample_user: User, sample_task: Task):
-        """Test getting all tasks for a user"""
-        service = TaskService(db_session)
-        
-        # Create additional tasks
-        for i in range(3):
-            task = Task(
-                title=f"Task {i}",
-                owner_id=sample_user.id
-            )
-            db_session.add(task)
-        db_session.commit()
-        
-        tasks = service.get_user_tasks(sample_user.id)
-        
-        assert len(tasks) == 4  # Including sample_task
-        assert all(task.owner_id == sample_user.id for task in tasks)
-    
-    def test_update_task(self, db_session: Session, sample_task: Task):
-        """Test updating a task"""
-        service = TaskService(db_session)
-        
-        updates = {
-            "title": "Updated Task",
-            "status": "in_progress"
-        }
-        
-        updated_task = service.update_task(sample_task.id, updates)
-        
-        assert updated_task.title == "Updated Task"
-        assert updated_task.status == "in_progress"
-        assert updated_task.description == sample_task.description  # Unchanged
-    
-    def test_delete_task(self, db_session: Session, sample_task: Task):
-        """Test deleting a task"""
-        service = TaskService(db_session)
-        task_id = sample_task.id
-        
-        service.delete_task(task_id)
-        
-        # Verify task is deleted
-        deleted_task = db_session.query(Task).filter(Task.id == task_id).first()
-        assert deleted_task is None
-    
-    def test_complete_task(self, db_session: Session, sample_task: Task):
-        """Test marking a task as completed"""
-        service = TaskService(db_session)
-        
-        completed_task = service.complete_task(sample_task.id)
-        
-        assert completed_task.status == "completed"
-        assert completed_task.completed_at is not None
-        assert isinstance(completed_task.completed_at, datetime)
-    
-    def test_get_overdue_tasks(self, db_session: Session, sample_user: User):
-        """Test getting overdue tasks"""
-        service = TaskService(db_session)
-        
-        # Create overdue task
-        overdue_task = Task(
-            title="Overdue Task",
-            owner_id=sample_user.id,
-            due_date=datetime.now() - timedelta(days=1)
+    def test_update_task_status(self, db_session: Session):
+        """Test updating task status"""
+        task = Task(
+            title="Task to Update",
+            status="pending"
         )
         
-        # Create future task
-        future_task = Task(
-            title="Future Task",
-            owner_id=sample_user.id,
-            due_date=datetime.now() + timedelta(days=1)
-        )
-        
-        db_session.add_all([overdue_task, future_task])
+        db_session.add(task)
         db_session.commit()
         
-        overdue_tasks = service.get_overdue_tasks(sample_user.id)
+        # Update status
+        task.status = "completed"
+        task.completed_at = datetime.now()
+        db_session.commit()
         
-        assert len(overdue_tasks) == 1
-        assert overdue_tasks[0].title == "Overdue Task"
+        assert task.status == "completed"
+        assert task.completed_at is not None
 '''
         
         (self.project_root / "tests" / "unit" / "test_tasks.py").write_text(test_tasks_py)
-        
-        # Integration test
-        test_api_py = '''"""Integration tests for API endpoints"""
-
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-
-from src.main import app
-from src.backend.models import User
-
-
-@pytest.fixture
-def client():
-    """Create test client"""
-    return TestClient(app)
-
-
-@pytest.fixture
-def auth_headers(client: TestClient, db_session: Session) -> dict:
-    """Get authentication headers for test user"""
-    # Create test user
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "username": "testuser",
-            "email": "test@example.com",
-            "password": "testpass123"
-        }
-    )
-    assert response.status_code == 201
-    
-    # Login
-    response = client.post(
-        "/api/v1/auth/login",
-        data={
-            "username": "testuser",
-            "password": "testpass123"
-        }
-    )
-    assert response.status_code == 200
-    
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
-class TestTaskAPI:
-    """Test task API endpoints"""
-    
-    def test_create_task(self, client: TestClient, auth_headers: dict):
-        """Test creating a task via API"""
-        response = client.post(
-            "/api/v1/tasks/",
-            json={
-                "title": "API Test Task",
-                "description": "Created via API",
-                "priority": "high"
-            },
-            headers=auth_headers
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["title"] == "API Test Task"
-        assert data["priority"] == "high"
-        assert "id" in data
-    
-    def test_get_tasks(self, client: TestClient, auth_headers: dict):
-        """Test getting tasks list"""
-        # Create some tasks first
-        for i in range(3):
-            client.post(
-                "/api/v1/tasks/",
-                json={"title": f"Task {i}"},
-                headers=auth_headers
-            )
-        
-        # Get tasks
-        response = client.get("/api/v1/tasks/", headers=auth_headers)
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 3
-    
-    def test_update_task(self, client: TestClient, auth_headers: dict):
-        """Test updating a task"""
-        # Create task
-        create_response = client.post(
-            "/api/v1/tasks/",
-            json={"title": "Original Title"},
-            headers=auth_headers
-        )
-        task_id = create_response.json()["id"]
-        
-        # Update task
-        response = client.put(
-            f"/api/v1/tasks/{task_id}",
-            json={"title": "Updated Title"},
-            headers=auth_headers
-        )
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["title"] == "Updated Title"
-    
-    def test_delete_task(self, client: TestClient, auth_headers: dict):
-        """Test deleting a task"""
-        # Create task
-        create_response = client.post(
-            "/api/v1/tasks/",
-            json={"title": "To Delete"},
-            headers=auth_headers
-        )
-        task_id = create_response.json()["id"]
-        
-        # Delete task
-        response = client.delete(
-            f"/api/v1/tasks/{task_id}",
-            headers=auth_headers
-        )
-        
-        assert response.status_code == 200
-        
-        # Verify deletion
-        get_response = client.get(
-            f"/api/v1/tasks/{task_id}",
-            headers=auth_headers
-        )
-        assert get_response.status_code == 404
-    
-    def test_unauthorized_access(self, client: TestClient):
-        """Test accessing API without authentication"""
-        response = client.get("/api/v1/tasks/")
-        assert response.status_code == 401
-'''
-        
-        (self.project_root / "tests" / "integration" / "test_api.py").write_text(test_api_py)
         
         # Test configuration
         conftest_py = '''"""Pytest configuration and fixtures"""
@@ -1585,52 +1623,11 @@ def db_session(db_engine):
 
 ## Overview
 
-The Task Manager Pro API provides a RESTful interface for managing tasks, users, and tags.
+The Task Manager Pro API provides a RESTful interface for managing tasks.
 
 Base URL: `http://localhost:8000/api/v1`
 
-## Authentication
-
-The API uses JWT (JSON Web Token) authentication. Include the token in the Authorization header:
-
-```
-Authorization: Bearer <your-token>
-```
-
 ## Endpoints
-
-### Authentication
-
-#### Register User
-```
-POST /auth/register
-```
-
-Request body:
-```json
-{
-  "username": "johndoe",
-  "email": "john@example.com",
-  "password": "securepassword"
-}
-```
-
-#### Login
-```
-POST /auth/login
-```
-
-Request body (form-data):
-- username: string
-- password: string
-
-Response:
-```json
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "token_type": "bearer"
-}
-```
 
 ### Tasks
 
@@ -1670,14 +1667,6 @@ GET /tasks/{task_id}
 PUT /tasks/{task_id}
 ```
 
-Request body (partial update supported):
-```json
-{
-  "title": "Updated Title",
-  "status": "in_progress"
-}
-```
-
 #### Delete Task
 ```
 DELETE /tasks/{task_id}
@@ -1702,151 +1691,11 @@ Common HTTP status codes:
 - 200: Success
 - 201: Created
 - 400: Bad Request
-- 401: Unauthorized
-- 403: Forbidden
 - 404: Not Found
 - 500: Internal Server Error
-
-## Rate Limiting
-
-API requests are limited to:
-- 1000 requests per hour for authenticated users
-- 100 requests per hour for unauthenticated users
-
-## Webhooks
-
-Configure webhooks to receive real-time updates:
-
-```
-POST /webhooks/
-```
-
-Request body:
-```json
-{
-  "url": "https://your-domain.com/webhook",
-  "events": ["task.created", "task.updated", "task.completed"]
-}
-```
 """
         
         (self.project_root / "docs" / "api.md").write_text(api_docs_md)
-        
-        # Architecture documentation
-        architecture_md = """# Task Manager Pro Architecture
-
-## System Overview
-
-Task Manager Pro follows a modern, scalable architecture with clear separation of concerns.
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   React SPA     │────▶│   FastAPI       │────▶│   PostgreSQL    │
-│   (Frontend)    │     │   (Backend)     │     │   (Database)    │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                        ┌─────────────────┐
-                        │     Redis       │
-                        │    (Cache)      │
-                        └─────────────────┘
-```
-
-## Technology Stack
-
-### Backend
-- **FastAPI**: Modern Python web framework
-- **SQLAlchemy**: ORM for database operations
-- **Alembic**: Database migration tool
-- **Pydantic**: Data validation
-- **JWT**: Authentication
-
-### Frontend
-- **React**: UI library
-- **React Router**: Client-side routing
-- **Axios**: HTTP client
-- **Context API**: State management
-
-### Infrastructure
-- **PostgreSQL**: Primary database
-- **Redis**: Caching and session storage
-- **Docker**: Containerization
-- **Nginx**: Reverse proxy
-
-## Design Patterns
-
-### Repository Pattern
-Abstracts data access logic:
-
-```python
-class TaskRepository:
-    def __init__(self, db: Session):
-        self.db = db
-    
-    def get_by_id(self, task_id: int) -> Task:
-        return self.db.query(Task).filter(Task.id == task_id).first()
-```
-
-### Service Layer
-Business logic separation:
-
-```python
-class TaskService:
-    def __init__(self, repository: TaskRepository):
-        self.repository = repository
-    
-    def complete_task(self, task_id: int):
-        task = self.repository.get_by_id(task_id)
-        task.status = "completed"
-        task.completed_at = datetime.now()
-        return task
-```
-
-### Dependency Injection
-FastAPI's dependency system:
-
-```python
-def get_task_service(db: Session = Depends(get_db)) -> TaskService:
-    repository = TaskRepository(db)
-    return TaskService(repository)
-```
-
-## Security Considerations
-
-1. **Authentication**: JWT tokens with expiration
-2. **Authorization**: Role-based access control
-3. **Data Validation**: Pydantic models
-4. **SQL Injection**: Parameterized queries via SQLAlchemy
-5. **XSS Protection**: React's built-in escaping
-6. **HTTPS**: SSL/TLS in production
-7. **Rate Limiting**: Prevent abuse
-
-## Scalability
-
-### Horizontal Scaling
-- Stateless API servers
-- Load balancer (Nginx)
-- Session storage in Redis
-
-### Database Optimization
-- Connection pooling
-- Query optimization
-- Read replicas for scaling reads
-
-### Caching Strategy
-- Redis for frequently accessed data
-- Cache invalidation on updates
-- TTL for automatic expiration
-
-## Monitoring
-
-- **Logging**: Structured logs with correlation IDs
-- **Metrics**: Prometheus + Grafana
-- **Tracing**: OpenTelemetry
-- **Alerts**: Based on SLOs
-"""
-        
-        (self.project_root / "docs" / "architecture.md").write_text(architecture_md)
         print("✓ Created documentation")
     
     def _create_deployment_configs(self):
@@ -1869,21 +1718,6 @@ services:
       - redis
     volumes:
       - ./src:/app/src
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: taskmanager-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8000/api/v1
-    volumes:
-      - ./src/frontend:/app/src
-      - ./public:/app/public
-    command: npm start
 
   db:
     image: postgres:15-alpine
@@ -1902,20 +1736,8 @@ services:
     container_name: taskmanager-redis
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-
-  nginx:
-    image: nginx:alpine
-    container_name: taskmanager-nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - backend
-      - frontend
 
 volumes:
   postgres_data:
@@ -1941,10 +1763,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-
 # Expose port
 EXPOSE 8000
 
@@ -1953,56 +1771,6 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 """
         
         (self.project_root / "Dockerfile").write_text(dockerfile)
-        
-        # Nginx configuration
-        nginx_conf = """events {
-    worker_connections 1024;
-}
-
-http {
-    upstream backend {
-        server backend:8000;
-    }
-
-    upstream frontend {
-        server frontend:3000;
-    }
-
-    server {
-        listen 80;
-        server_name localhost;
-
-        # Frontend
-        location / {
-            proxy_pass http://frontend;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection 'upgrade';
-            proxy_set_header Host $host;
-            proxy_cache_bypass $http_upgrade;
-        }
-
-        # API
-        location /api {
-            proxy_pass http://backend;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
-        # WebSocket support
-        location /ws {
-            proxy_pass http://backend;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-        }
-    }
-}
-"""
-        
-        (self.project_root / "nginx.conf").write_text(nginx_conf)
         print("✓ Created deployment configs")
     
     def _create_grace_ide_config(self):
@@ -2069,13 +1837,6 @@ http {
                     "module": "uvicorn",
                     "args": ["src.main:app", "--reload"],
                     "env": {"APP_ENV": "development"}
-                },
-                {
-                    "name": "Debug Frontend",
-                    "type": "chrome",
-                    "request": "launch",
-                    "url": "http://localhost:3000",
-                    "webRoot": "${workspaceFolder}/src/frontend"
                 }
             ],
             
@@ -2090,16 +1851,15 @@ http {
             },
             
             "snippets": {
-                "Fast API Endpoint": {
+                "FastAPI Endpoint": {
                     "prefix": "fastapi-endpoint",
                     "body": [
-                        "@router.${1:get}(\"/${2:path}\")",
-                        "async def ${3:function_name}(",
-                        "    db: Session = Depends(get_db),",
-                        "    current_user: User = Depends(get_current_user)",
+                        "@router.get(\"/{path}\")",
+                        "async def function_name(",
+                        "    db: Session = Depends(get_db)",
                         "):",
-                        "    \"\"\"${4:Description}\"\"\"",
-                        "    ${5:# Implementation}",
+                        "    \"\"\"Description\"\"\"",
+                        "    # Implementation",
                         "    return {\"message\": \"Success\"}"
                     ]
                 },
@@ -2108,15 +1868,15 @@ http {
                     "body": [
                         "import React from 'react';",
                         "",
-                        "function ${1:ComponentName}({ ${2:props} }) {",
+                        "function ComponentName() {",
                         "    return (",
-                        "        <div className=\"${3:class-name}\">",
-                        "            ${4:// Content}",
+                        "        <div className=\"component-name\">",
+                        "            {/* Content */}",
                         "        </div>",
                         "    );",
                         "}",
                         "",
-                        "export default ${1:ComponentName};"
+                        "export default ComponentName;"
                     ]
                 }
             }
@@ -2125,44 +1885,95 @@ http {
         (self.project_root / ".grace" / "workspace.json").write_text(
             json.dumps(grace_config, indent=2)
         )
-        
-        # Create run configurations
-        run_configs = {
-            "configurations": [
-                {
-                    "name": "Full Stack",
-                    "type": "compound",
-                    "configurations": ["Backend", "Frontend"]
-                },
-                {
-                    "name": "Backend",
-                    "type": "python",
-                    "command": "python src/main.py"
-                },
-                {
-                    "name": "Frontend",
-                    "type": "npm",
-                    "command": "start"
-                },
-                {
-                    "name": "Tests",
-                    "type": "pytest",
-                    "args": ["-v", "--cov=src"]
-                }
-            ]
-        }
-        
-        (self.project_root / ".grace" / "run.json").write_text(
-            json.dumps(run_configs, indent=2)
-        )
         print("✓ Created Grace_IDE configuration")
-
-
-# Scripts directory
-def create_scripts():
-    """Create utility scripts"""
-    scripts_dir = Path("./sample-project/scripts")
-    scripts_dir.mkdir(exist_ok=True)
     
-    # Database setup script
-    setup_db_py = '''#!/usr/
+    def _create_scripts(self):
+        """Create utility scripts"""
+        # Database setup script
+        setup_db_py = '''#!/usr/bin/env python3
+"""Database setup script"""
+
+import asyncio
+from src.backend.database import init_db
+from src.backend.config import get_settings
+
+async def main():
+    """Set up the database"""
+    print("Setting up database...")
+    settings = get_settings()
+    print(f"Database URL: {settings.DATABASE_URL}")
+    
+    await init_db()
+    print("Database setup complete!")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+'''
+        
+        (self.project_root / "scripts" / "setup_database.py").write_text(setup_db_py)
+        
+        # Run script
+        run_dev_py = '''#!/usr/bin/env python3
+"""Development server runner"""
+
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+def run_backend():
+    """Run the FastAPI backend"""
+    print("Starting backend server...")
+    subprocess.run([sys.executable, "src/main.py"])
+
+def run_frontend():
+    """Run the React frontend"""
+    print("Starting frontend server...")
+    if Path("package.json").exists():
+        subprocess.run(["npm", "start"])
+    else:
+        print("No package.json found. Please install npm dependencies first.")
+
+def main():
+    """Main runner"""
+    if len(sys.argv) < 2:
+        print("Usage: python scripts/run_dev.py [backend|frontend|both]")
+        return
+    
+    mode = sys.argv[1]
+    
+    if mode == "backend":
+        run_backend()
+    elif mode == "frontend":
+        run_frontend()
+    elif mode == "both":
+        print("Starting both backend and frontend...")
+        print("Note: Run backend and frontend in separate terminals for better control")
+        run_backend()
+    else:
+        print("Invalid mode. Use: backend, frontend, or both")
+
+if __name__ == "__main__":
+    main()
+'''
+        
+        (self.project_root / "scripts" / "run_dev.py").write_text(run_dev_py)
+        print("✓ Created utility scripts")
+
+
+def main():
+    """Main function to run the generator"""
+    generator = SampleProjectGenerator()
+    generator.create_project()
+    
+    print("\n🎉 Grace_IDE Sample Project created successfully!")
+    print("\nNext steps:")
+    print("1. cd sample-project")
+    print("2. pip install -r requirements.txt")
+    print("3. python scripts/setup_database.py")
+    print("4. python src/main.py")
+    print("\nEnjoy building with Grace_IDE! 🚀")
+
+
+if __name__ == "__main__":
+    main()

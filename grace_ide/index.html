@@ -60,25 +60,29 @@ class SyntaxHighlighter {
     initialize() {
         console.log('🎨 Initializing Grace Syntax Highlighter...');
         
-        // Register built-in languages
-        this.registerBuiltInLanguages();
-        
-        // Register built-in themes
-        this.registerBuiltInThemes();
-        
-        // Setup worker for background highlighting
-        if (typeof Worker !== 'undefined' && this.config.enableLiveHighlighting) {
-            this.setupHighlightingWorker();
+        try {
+            // Register built-in languages
+            this.registerBuiltInLanguages();
+            
+            // Register built-in themes
+            this.registerBuiltInThemes();
+            
+            // Setup worker for background highlighting
+            if (typeof Worker !== 'undefined' && this.config.enableLiveHighlighting) {
+                this.setupHighlightingWorker();
+            }
+            
+            // Inject styles
+            this.injectStyles();
+            
+            // Connect to Grace Core
+            this.connectToGraceCore();
+            
+            this.state.initialized = true;
+            console.log('✅ Syntax Highlighter initialized');
+        } catch (error) {
+            console.error('❌ Failed to initialize Syntax Highlighter:', error);
         }
-        
-        // Inject styles
-        this.injectStyles();
-        
-        // Connect to Grace Core
-        this.connectToGraceCore();
-        
-        this.state.initialized = true;
-        console.log('✅ Syntax Highlighter initialized');
     }
     
     // Language Registration
@@ -86,37 +90,45 @@ class SyntaxHighlighter {
         // JavaScript
         this.registerLanguage('javascript', {
             name: 'JavaScript',
-            extensions: ['.js', '.jsx', '.mjs'],
+            extensions: ['.js', '.jsx', '.mjs', '.ts', '.tsx'],
             keywords: [
                 'async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
                 'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
                 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let',
                 'new', 'of', 'return', 'static', 'super', 'switch', 'this', 'throw',
-                'try', 'typeof', 'var', 'void', 'while', 'with', 'yield'
+                'try', 'typeof', 'var', 'void', 'while', 'with', 'yield', 'interface',
+                'type', 'namespace', 'module', 'declare', 'readonly', 'public', 'private',
+                'protected', 'abstract', 'implements', 'enum'
             ],
             builtins: [
                 'Array', 'Object', 'String', 'Number', 'Boolean', 'Date', 'Math', 'JSON',
                 'Promise', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Proxy',
-                'Reflect', 'console', 'window', 'document', 'global', 'process'
+                'Reflect', 'console', 'window', 'document', 'global', 'process',
+                'Buffer', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'
             ],
             operators: [
                 '=', '+=', '-=', '*=', '/=', '%=', '**=', '<<=', '>>=', '>>>=',
                 '&=', '|=', '^=', '&&=', '||=', '??=', '==', '!=', '===', '!==',
                 '<', '>', '<=', '>=', '<<', '>>', '>>>', '+', '-', '*', '/', '%',
                 '**', '++', '--', '&&', '||', '!', '~', '&', '|', '^', '?', ':',
-                '=>', '...', '??', '?.'
+                '=>', '...', '??', '?.', '?:'
             ],
             stringDelimiters: ['"', "'", '`'],
             commentDelimiters: {
                 single: '//',
                 multi: ['/*', '*/']
+            },
+            patterns: {
+                number: /^\d+(\.\d+)?([eE][+-]?\d+)?/,
+                identifier: /^[a-zA-Z_$][a-zA-Z0-9_$]*/,
+                regex: /^\/(?:[^\/\\]|\\.)+\/[gimuy]*/
             }
         });
         
         // Python
         this.registerLanguage('python', {
             name: 'Python',
-            extensions: ['.py', '.pyw'],
+            extensions: ['.py', '.pyw', '.pyi'],
             keywords: [
                 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue',
                 'def', 'del', 'elif', 'else', 'except', 'False', 'finally', 'for',
@@ -137,20 +149,24 @@ class SyntaxHighlighter {
             ],
             operators: [
                 '=', '+=', '-=', '*=', '/=', '//=', '%=', '**=', '&=', '|=', '^=',
-                '>>=', '<<=', '==', '!=', '<', '>', '<=', '>=', 'and', 'or', 'not',
-                'in', 'is', '+', '-', '*', '/', '//', '%', '**', '~', '&', '|',
-                '^', '>>', '<<'
+                '>>=', '<<=', '==', '!=', '<', '>', '<=', '>=', '+', '-', '*', '/',
+                '//', '%', '**', '~', '&', '|', '^', '>>', '<<'
             ],
             stringDelimiters: ['"', "'", '"""', "'''"],
             commentDelimiters: {
                 single: '#'
+            },
+            patterns: {
+                number: /^\d+(\.\d+)?([eE][+-]?\d+)?/,
+                identifier: /^[a-zA-Z_][a-zA-Z0-9_]*/,
+                decorator: /^@[a-zA-Z_][a-zA-Z0-9_.]*/
             }
         });
         
         // HTML
         this.registerLanguage('html', {
             name: 'HTML',
-            extensions: ['.html', '.htm', '.xhtml'],
+            extensions: ['.html', '.htm', '.xhtml', '.vue', '.svelte'],
             tagNames: [
                 'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio', 'b', 'base',
                 'bdi', 'bdo', 'blockquote', 'body', 'br', 'button', 'canvas', 'caption',
@@ -172,24 +188,22 @@ class SyntaxHighlighter {
                 'controls', 'coords', 'data', 'datetime', 'defer', 'dir', 'disabled',
                 'download', 'draggable', 'enctype', 'for', 'form', 'headers', 'height',
                 'hidden', 'href', 'id', 'lang', 'list', 'loop', 'max', 'maxlength', 'media',
-                'method', 'min', 'multiple', 'muted', 'name', 'novalidate', 'onblur',
-                'onchange', 'onclick', 'onfocus', 'onkeydown', 'onkeypress', 'onkeyup',
-                'onload', 'onmousedown', 'onmousemove', 'onmouseout', 'onmouseover',
-                'onmouseup', 'onsubmit', 'open', 'pattern', 'placeholder', 'poster',
-                'preload', 'readonly', 'rel', 'required', 'rows', 'rowspan', 'sandbox',
-                'scope', 'selected', 'shape', 'size', 'sizes', 'span', 'spellcheck', 'src',
-                'srcdoc', 'srcset', 'start', 'step', 'style', 'tabindex', 'target', 'title',
-                'type', 'usemap', 'value', 'width', 'wrap'
+                'method', 'min', 'multiple', 'muted', 'name', 'novalidate', 'open',
+                'pattern', 'placeholder', 'poster', 'preload', 'readonly', 'rel', 'required',
+                'rows', 'rowspan', 'sandbox', 'scope', 'selected', 'shape', 'size', 'sizes',
+                'span', 'spellcheck', 'src', 'srcdoc', 'srcset', 'start', 'step', 'style',
+                'tabindex', 'target', 'title', 'type', 'usemap', 'value', 'width', 'wrap'
             ]
         });
         
         // CSS
         this.registerLanguage('css', {
             name: 'CSS',
-            extensions: ['.css', '.scss', '.sass', '.less'],
+            extensions: ['.css', '.scss', '.sass', '.less', '.stylus'],
             keywords: [
-                'import', 'media', 'charset', 'font-face', 'namespace', 'supports',
-                'keyframes', 'page', 'viewport', 'counter-style'
+                '@import', '@media', '@charset', '@font-face', '@namespace', '@supports',
+                '@keyframes', '@page', '@viewport', '@counter-style', '@document',
+                'important', 'and', 'or', 'not', 'only'
             ],
             properties: [
                 'align-content', 'align-items', 'align-self', 'animation', 'background',
@@ -200,38 +214,81 @@ class SyntaxHighlighter {
                 'max-width', 'min-height', 'min-width', 'opacity', 'overflow', 'padding',
                 'position', 'right', 'text-align', 'text-decoration', 'text-transform',
                 'top', 'transform', 'transition', 'vertical-align', 'visibility', 'width',
-                'z-index'
+                'z-index', 'grid', 'grid-template', 'gap'
             ],
             values: [
                 'absolute', 'auto', 'block', 'bold', 'border-box', 'center', 'fixed',
                 'flex', 'hidden', 'inherit', 'inline', 'inline-block', 'italic', 'left',
                 'none', 'normal', 'nowrap', 'pointer', 'relative', 'right', 'solid',
-                'transparent', 'underline', 'visible'
-            ]
+                'transparent', 'underline', 'visible', 'grid', 'inline-grid'
+            ],
+            patterns: {
+                color: /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b/,
+                unit: /^\d+(\.\d+)?(px|em|rem|%|vh|vw|pt|pc|in|cm|mm|ex|ch|vmin|vmax)/,
+                function: /^[a-zA-Z-]+\(/
+            }
         });
         
         // JSON
         this.registerLanguage('json', {
             name: 'JSON',
-            extensions: ['.json', '.jsonc'],
-            constants: ['true', 'false', 'null']
+            extensions: ['.json', '.jsonc', '.json5'],
+            constants: ['true', 'false', 'null'],
+            patterns: {
+                number: /^-?\d+(\.\d+)?([eE][+-]?\d+)?/,
+                string: /^"([^"\\]|\\.)*"/
+            }
         });
         
         // Markdown
         this.registerLanguage('markdown', {
             name: 'Markdown',
-            extensions: ['.md', '.markdown'],
+            extensions: ['.md', '.markdown', '.mdown', '.mkd'],
             markers: {
-                heading: '#',
-                bold: ['**', '__'],
-                italic: ['*', '_'],
-                code: '`',
-                codeBlock: '```',
-                list: ['-', '*', '+'],
-                orderedList: /^\d+\./,
-                blockquote: '>',
-                horizontalRule: ['---', '***', '___']
+                heading: /^#{1,6}\s/,
+                bold: /\*\*([^*]+)\*\*/g,
+                italic: /\*([^*]+)\*/g,
+                code: /`([^`]+)`/g,
+                codeBlock: /^```(\w+)?\n([\s\S]*?)^```/gm,
+                link: /\[([^\]]+)\]\(([^)]+)\)/g,
+                image: /!\[([^\]]*)\]\(([^)]+)\)/g,
+                list: /^[\s]*[-*+]\s/,
+                orderedList: /^[\s]*\d+\.\s/,
+                blockquote: /^>\s/,
+                horizontalRule: /^(---|\*\*\*|___)\s*$/
             }
+        });
+        
+        // XML
+        this.registerLanguage('xml', {
+            name: 'XML',
+            extensions: ['.xml', '.xsl', '.xsd', '.wsdl', '.rss', '.atom'],
+            patterns: {
+                tag: /<\/?[a-zA-Z][\w-]*(?:\s+[^>]*)?\/?>/,
+                attribute: /\s+([a-zA-Z][\w-]*)=/,
+                cdata: /<!\[CDATA\[[\s\S]*?\]\]>/
+            }
+        });
+        
+        // SQL
+        this.registerLanguage('sql', {
+            name: 'SQL',
+            extensions: ['.sql'],
+            keywords: [
+                'SELECT', 'FROM', 'WHERE', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
+                'GROUP', 'BY', 'ORDER', 'HAVING', 'UNION', 'INSERT', 'UPDATE', 'DELETE',
+                'CREATE', 'ALTER', 'DROP', 'TABLE', 'INDEX', 'VIEW', 'DATABASE',
+                'SCHEMA', 'PROCEDURE', 'FUNCTION', 'TRIGGER', 'CONSTRAINT', 'PRIMARY',
+                'FOREIGN', 'KEY', 'REFERENCES', 'NOT', 'NULL', 'DEFAULT', 'AUTO_INCREMENT',
+                'UNIQUE', 'CHECK', 'AND', 'OR', 'IN', 'EXISTS', 'BETWEEN', 'LIKE',
+                'IS', 'AS', 'DISTINCT', 'ALL', 'ANY', 'SOME', 'CASE', 'WHEN', 'THEN',
+                'ELSE', 'END', 'IF', 'WHILE', 'FOR', 'LOOP', 'BEGIN', 'COMMIT', 'ROLLBACK'
+            ],
+            types: [
+                'VARCHAR', 'CHAR', 'TEXT', 'INT', 'INTEGER', 'BIGINT', 'SMALLINT',
+                'DECIMAL', 'NUMERIC', 'FLOAT', 'DOUBLE', 'REAL', 'DATE', 'TIME',
+                'DATETIME', 'TIMESTAMP', 'YEAR', 'BOOLEAN', 'BOOL', 'BINARY', 'BLOB'
+            ]
         });
     }
     
@@ -347,6 +404,39 @@ class SyntaxHighlighter {
                 error: '#ff0000'
             }
         });
+        
+        // Grace Ocean Theme
+        this.registerTheme('grace-ocean', {
+            name: 'Grace Ocean',
+            colors: {
+                background: '#0f111a',
+                foreground: '#a7adba',
+                lineNumber: '#4f5b66',
+                activeLine: '#1b2232',
+                selection: '#343d46',
+                cursor: '#6699cc',
+                
+                keyword: '#c594c5',
+                identifier: '#a7adba',
+                string: '#99c794',
+                number: '#f99157',
+                comment: '#65737e',
+                operator: '#c594c5',
+                punctuation: '#a7adba',
+                function: '#6699cc',
+                class: '#fac863',
+                variable: '#a7adba',
+                constant: '#f99157',
+                property: '#6699cc',
+                tag: '#ec5f67',
+                attribute: '#fac863',
+                builtin: '#6699cc',
+                regex: '#ec5f67',
+                template: '#99c794',
+                decorator: '#fac863',
+                error: '#ec5f67'
+            }
+        });
     }
     
     registerTheme(id, definition) {
@@ -358,47 +448,64 @@ class SyntaxHighlighter {
     
     // Highlighting Methods
     async highlight(text, languageId, options = {}) {
-        // Check cache first
-        const cacheKey = `${languageId}:${text.substring(0, 100)}:${text.length}`;
-        if (this.state.cache.has(cacheKey) && !options.noCache) {
-            return this.state.cache.get(cacheKey);
-        }
-        
-        // Check text size limit
-        if (text.length > this.config.maxHighlightLength) {
-            console.warn('Text too long for highlighting, returning plain text');
+        try {
+            // Validate input
+            if (typeof text !== 'string') {
+                throw new Error('Text must be a string');
+            }
+            
+            // Check cache first
+            const cacheKey = `${languageId}:${this.hashString(text)}:${this.state.activeTheme}`;
+            if (this.state.cache.has(cacheKey) && !options.noCache) {
+                return this.state.cache.get(cacheKey);
+            }
+            
+            // Check text size limit
+            if (text.length > this.config.maxHighlightLength) {
+                console.warn('Text too long for highlighting, returning plain text');
+                return this.createPlainTextResult(text);
+            }
+            
+            // Get language definition
+            const language = this.languages.get(languageId);
+            if (!language) {
+                console.warn(`Language ${languageId} not found`);
+                return this.createPlainTextResult(text);
+            }
+            
+            // Tokenize
+            const tokens = this.tokenize(text, language);
+            
+            // Apply theme
+            const themed = this.applyTheme(tokens, this.state.activeTheme);
+            
+            // Create HTML
+            const html = this.createHighlightedHTML(themed, options);
+            
+            // Cache result
+            const result = {
+                html: html,
+                tokens: tokens,
+                language: languageId,
+                theme: this.state.activeTheme
+            };
+            
+            this.state.cache.set(cacheKey, result);
+            
+            // Limit cache size
+            if (this.state.cache.size > 1000) {
+                const firstKey = this.state.cache.keys().next().value;
+                this.state.cache.delete(firstKey);
+            }
+            
+            return result;
+        } catch (error) {
+            console.error('Error highlighting text:', error);
             return this.createPlainTextResult(text);
         }
-        
-        // Get language definition
-        const language = this.languages.get(languageId);
-        if (!language) {
-            console.warn(`Language ${languageId} not found`);
-            return this.createPlainTextResult(text);
-        }
-        
-        // Tokenize
-        const tokens = this.tokenize(text, language);
-        
-        // Apply theme
-        const themed = this.applyTheme(tokens, this.state.activeTheme);
-        
-        // Create HTML
-        const html = this.createHighlightedHTML(themed, options);
-        
-        // Cache result
-        const result = {
-            html: html,
-            tokens: tokens,
-            language: languageId
-        };
-        
-        this.state.cache.set(cacheKey, result);
-        
-        return result;
     }
     
-    // Simple tokenizer
+    // Simple but robust tokenizer
     tokenize(text, language) {
         const tokens = [];
         const lines = text.split('\n');
@@ -409,30 +516,37 @@ class SyntaxHighlighter {
             while (position < line.length) {
                 let matched = false;
                 
-                // Check for strings
-                if (language.stringDelimiters) {
-                    for (const delimiter of language.stringDelimiters) {
-                        if (line.substr(position, delimiter.length) === delimiter) {
-                            const endPos = line.indexOf(delimiter, position + delimiter.length);
-                            if (endPos !== -1) {
-                                tokens.push({
-                                    type: 'string',
-                                    value: line.substring(position, endPos + delimiter.length),
-                                    line: lineIndex,
-                                    start: position,
-                                    end: endPos + delimiter.length
-                                });
-                                position = endPos + delimiter.length;
-                                matched = true;
-                                break;
-                            }
-                        }
+                // Skip whitespace
+                const whitespaceMatch = /^\s+/.exec(line.substring(position));
+                if (whitespaceMatch) {
+                    position += whitespaceMatch[0].length;
+                    continue;
+                }
+                
+                // Check for multi-line comments (simplified)
+                if (language.commentDelimiters && language.commentDelimiters.multi) {
+                    const [start, end] = language.commentDelimiters.multi;
+                    if (line.substring(position, position + start.length) === start) {
+                        let endPos = line.indexOf(end, position + start.length);
+                        if (endPos === -1) endPos = line.length;
+                        else endPos += end.length;
+                        
+                        tokens.push({
+                            type: 'comment',
+                            value: line.substring(position, endPos),
+                            line: lineIndex,
+                            start: position,
+                            end: endPos
+                        });
+                        position = endPos;
+                        matched = true;
+                        continue;
                     }
                 }
                 
                 // Check for single-line comments
-                if (!matched && language.commentDelimiters && language.commentDelimiters.single) {
-                    if (line.substr(position).startsWith(language.commentDelimiters.single)) {
+                if (language.commentDelimiters && language.commentDelimiters.single) {
+                    if (line.substring(position, position + language.commentDelimiters.single.length) === language.commentDelimiters.single) {
                         tokens.push({
                             type: 'comment',
                             value: line.substring(position),
@@ -442,56 +556,108 @@ class SyntaxHighlighter {
                         });
                         position = line.length;
                         matched = true;
+                        continue;
                     }
                 }
+                
+                // Check for strings
+                if (language.stringDelimiters) {
+                    for (const delimiter of language.stringDelimiters) {
+                        if (line.substring(position, position + delimiter.length) === delimiter) {
+                            let endPos = position + delimiter.length;
+                            let escaped = false;
+                            
+                            while (endPos < line.length) {
+                                if (escaped) {
+                                    escaped = false;
+                                } else if (line[endPos] === '\\') {
+                                    escaped = true;
+                                } else if (line.substring(endPos, endPos + delimiter.length) === delimiter) {
+                                    endPos += delimiter.length;
+                                    break;
+                                }
+                                endPos++;
+                            }
+                            
+                            tokens.push({
+                                type: 'string',
+                                value: line.substring(position, endPos),
+                                line: lineIndex,
+                                start: position,
+                                end: endPos
+                            });
+                            position = endPos;
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (matched) continue;
+                
+                // Check for regex patterns
+                if (language.patterns) {
+                    for (const [patternName, pattern] of Object.entries(language.patterns)) {
+                        const match = pattern.exec(line.substring(position));
+                        if (match && match.index === 0) {
+                            const tokenType = patternName === 'identifier' ? 
+                                this.classifyIdentifier(match[0], language) : patternName;
+                            
+                            tokens.push({
+                                type: tokenType,
+                                value: match[0],
+                                line: lineIndex,
+                                start: position,
+                                end: position + match[0].length
+                            });
+                            position += match[0].length;
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (matched) continue;
                 
                 // Check for numbers
-                if (!matched) {
-                    const numberMatch = /^\d+(\.\d+)?/.exec(line.substring(position));
-                    if (numberMatch) {
-                        tokens.push({
-                            type: 'number',
-                            value: numberMatch[0],
-                            line: lineIndex,
-                            start: position,
-                            end: position + numberMatch[0].length
-                        });
-                        position += numberMatch[0].length;
-                        matched = true;
-                    }
+                const numberMatch = /^\d+(\.\d+)?([eE][+-]?\d+)?/.exec(line.substring(position));
+                if (numberMatch) {
+                    tokens.push({
+                        type: 'number',
+                        value: numberMatch[0],
+                        line: lineIndex,
+                        start: position,
+                        end: position + numberMatch[0].length
+                    });
+                    position += numberMatch[0].length;
+                    matched = true;
+                    continue;
                 }
                 
-                // Check for keywords and identifiers
-                if (!matched) {
-                    const wordMatch = /^[a-zA-Z_]\w*/.exec(line.substring(position));
-                    if (wordMatch) {
-                        const word = wordMatch[0];
-                        let type = 'identifier';
-                        
-                        if (language.keywords && language.keywords.includes(word)) {
-                            type = 'keyword';
-                        } else if (language.builtins && language.builtins.includes(word)) {
-                            type = 'builtin';
-                        } else if (language.constants && language.constants.includes(word)) {
-                            type = 'constant';
-                        }
-                        
-                        tokens.push({
-                            type: type,
-                            value: word,
-                            line: lineIndex,
-                            start: position,
-                            end: position + word.length
-                        });
-                        position += word.length;
-                        matched = true;
-                    }
+                // Check for identifiers and keywords
+                const wordMatch = /^[a-zA-Z_$][a-zA-Z0-9_$]*/.exec(line.substring(position));
+                if (wordMatch) {
+                    const word = wordMatch[0];
+                    const type = this.classifyWord(word, language);
+                    
+                    tokens.push({
+                        type: type,
+                        value: word,
+                        line: lineIndex,
+                        start: position,
+                        end: position + word.length
+                    });
+                    position += word.length;
+                    matched = true;
+                    continue;
                 }
                 
                 // Check for operators
-                if (!matched && language.operators) {
+                if (language.operators) {
                     const remaining = line.substring(position);
-                    for (const op of language.operators.sort((a, b) => b.length - a.length)) {
+                    const sortedOps = language.operators.sort((a, b) => b.length - a.length);
+                    
+                    for (const op of sortedOps) {
                         if (remaining.startsWith(op)) {
                             tokens.push({
                                 type: 'operator',
@@ -507,25 +673,41 @@ class SyntaxHighlighter {
                     }
                 }
                 
-                // Skip whitespace or add as punctuation
-                if (!matched) {
-                    if (/\s/.test(line[position])) {
-                        position++;
-                    } else {
-                        tokens.push({
-                            type: 'punctuation',
-                            value: line[position],
-                            line: lineIndex,
-                            start: position,
-                            end: position + 1
-                        });
-                        position++;
-                    }
-                }
+                if (matched) continue;
+                
+                // Default: treat as punctuation
+                tokens.push({
+                    type: 'punctuation',
+                    value: line[position],
+                    line: lineIndex,
+                    start: position,
+                    end: position + 1
+                });
+                position++;
             }
         });
         
         return tokens;
+    }
+    
+    classifyWord(word, language) {
+        if (language.keywords && language.keywords.includes(word)) {
+            return 'keyword';
+        }
+        if (language.builtins && language.builtins.includes(word)) {
+            return 'builtin';
+        }
+        if (language.constants && language.constants.includes(word)) {
+            return 'constant';
+        }
+        if (language.types && language.types.includes(word)) {
+            return 'type';
+        }
+        return 'identifier';
+    }
+    
+    classifyIdentifier(identifier, language) {
+        return this.classifyWord(identifier, language);
     }
     
     applyTheme(tokens, themeId) {
@@ -549,18 +731,25 @@ class SyntaxHighlighter {
         
         // Add special styles for certain token types
         switch (type) {
-            case 'strong':
+            case 'keyword':
                 style.fontWeight = 'bold';
-                break;
-            case 'emphasis':
-                style.fontStyle = 'italic';
                 break;
             case 'comment':
                 style.fontStyle = 'italic';
                 style.opacity = '0.8';
                 break;
+            case 'string':
+                break;
             case 'error':
-                style.textDecoration = 'underline wavy';
+                style.textDecoration = 'underline';
+                style.textDecorationColor = theme.colors.error;
+                style.textDecorationStyle = 'wavy';
+                break;
+            case 'function':
+                style.fontWeight = '500';
+                break;
+            case 'class':
+                style.fontWeight = 'bold';
                 break;
         }
         
@@ -572,11 +761,15 @@ class SyntaxHighlighter {
         const showLineNumbers = options.showLineNumbers ?? this.config.showLineNumbers;
         const theme = this.themes.get(this.state.activeTheme);
         
-        let html = '<div class="grace-code-container">';
+        let html = '<div class="grace-code-container"';
+        if (showLineNumbers) {
+            html += ' data-line-numbers="true"';
+        }
+        html += ' style="background-color: ' + theme.colors.background + '; color: ' + theme.colors.foreground + ';">';
         
         if (showLineNumbers) {
-            html += '<div class="grace-line-numbers">';
-            for (let i = 1; i <= lines.length; i++) {
+            html += '<div class="grace-line-numbers" style="color: ' + theme.colors.lineNumber + ';">';
+            for (let i = 1; i <= Math.max(1, lines.length); i++) {
                 html += `<div class="grace-line-number">${i}</div>`;
             }
             html += '</div>';
@@ -584,31 +777,27 @@ class SyntaxHighlighter {
         
         html += '<div class="grace-code-content">';
         
-        lines.forEach((lineTokens, lineIndex) => {
-            html += `<div class="grace-code-line" data-line="${lineIndex + 1}">`;
-            
-            if (lineTokens.length === 0) {
-                html += '&nbsp;'; // Empty line
-            } else {
-                let position = 0;
-                lineTokens.forEach(token => {
-                    // Add whitespace before token if needed
-                    if (token.start > position) {
-                        html += ' '.repeat(token.start - position);
-                    }
-                    
-                    // Add token
-                    const style = this.styleToString(token.style);
-                    html += `<span class="grace-token grace-token-${token.type}" style="${style}">${
-                        this.escapeHtml(token.value)
-                    }</span>`;
-                    
-                    position = token.end;
-                });
-            }
-            
-            html += '</div>';
-        });
+        if (lines.length === 0) {
+            html += '<div class="grace-code-line" data-line="1">&nbsp;</div>';
+        } else {
+            lines.forEach((lineTokens, lineIndex) => {
+                html += `<div class="grace-code-line" data-line="${lineIndex + 1}">`;
+                
+                if (lineTokens.length === 0) {
+                    html += '&nbsp;';
+                } else {
+                    lineTokens.forEach(token => {
+                        const style = this.styleToString(token.style);
+                        const className = `grace-token grace-token-${token.type}`;
+                        html += `<span class="${className}" style="${style}">${
+                            this.escapeHtml(token.value)
+                        }</span>`;
+                    });
+                }
+                
+                html += '</div>';
+            });
+        }
         
         html += '</div></div>';
         
@@ -617,23 +806,22 @@ class SyntaxHighlighter {
     
     groupTokensByLine(tokens) {
         const lines = [];
-        let currentLine = [];
-        let currentLineNum = 0;
+        let maxLine = 0;
         
+        // Find max line number
         tokens.forEach(token => {
-            if (token.line > currentLineNum) {
-                // Start new lines
-                while (currentLineNum < token.line) {
-                    lines.push(currentLine);
-                    currentLine = [];
-                    currentLineNum++;
-                }
-            }
-            currentLine.push(token);
+            if (token.line > maxLine) maxLine = token.line;
         });
         
-        // Add last line
-        lines.push(currentLine);
+        // Initialize lines array
+        for (let i = 0; i <= maxLine; i++) {
+            lines[i] = [];
+        }
+        
+        // Group tokens by line
+        tokens.forEach(token => {
+            lines[token.line].push(token);
+        });
         
         return lines;
     }
@@ -666,36 +854,63 @@ class SyntaxHighlighter {
         return div.innerHTML;
     }
     
+    hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash.toString(36);
+    }
+    
     // Live Highlighting
     setupLiveHighlighter(element, languageId, options = {}) {
+        if (!element) {
+            throw new Error('Element is required for live highlighting');
+        }
+        
         const highlighter = {
             element: element,
             language: languageId,
             options: options,
-            timeout: null
+            timeout: null,
+            enabled: true
         };
         
-        // Input handler
+        // Input handler with debouncing
         const handleInput = () => {
+            if (!highlighter.enabled) return;
+            
             if (highlighter.timeout) {
                 clearTimeout(highlighter.timeout);
             }
             
             highlighter.timeout = setTimeout(async () => {
-                const text = element.textContent || element.value;
-                const result = await this.highlight(text, languageId, options);
-                
-                if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
-                    // Create overlay for form elements
-                    this.updateHighlightOverlay(element, result.html);
-                } else {
-                    // Direct update for contenteditable
-                    this.updateContentEditable(element, result.html);
+                try {
+                    const text = element.textContent || element.value || '';
+                    const result = await this.highlight(text, languageId, options);
+                    
+                    if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
+                        this.updateHighlightOverlay(element, result.html);
+                    } else {
+                        this.updateContentEditable(element, result.html);
+                    }
+                } catch (error) {
+                    console.error('Error in live highlighting:', error);
                 }
-            }, 100); // 100ms debounce
+            }, 150); // 150ms debounce
         };
         
+        // Add event listeners
         element.addEventListener('input', handleInput);
+        element.addEventListener('scroll', () => {
+            if (element._highlightOverlay) {
+                element._highlightOverlay.scrollTop = element.scrollTop;
+                element._highlightOverlay.scrollLeft = element.scrollLeft;
+            }
+        });
+        
         element._highlighter = highlighter;
         
         // Initial highlight
@@ -708,80 +923,182 @@ class SyntaxHighlighter {
         let overlay = element._highlightOverlay;
         
         if (!overlay) {
-            // Create overlay
-            overlay = document.createElement('div');
-            overlay.className = 'grace-highlight-overlay';
-            overlay.style.cssText = `
-                position: absolute;
-                pointer-events: none;
-                white-space: pre-wrap;
-                overflow: hidden;
-            `;
-            
-            // Copy styles from element
-            const styles = window.getComputedStyle(element);
-            ['font', 'lineHeight', 'padding', 'border', 'width', 'height'].forEach(prop => {
-                overlay.style[prop] = styles[prop];
-            });
-            
-            element.parentNode.insertBefore(overlay, element);
-            element._highlightOverlay = overlay;
-            
-            // Make element transparent
-            element.style.color = 'transparent';
-            element.style.caretColor = this.themes.get(this.state.activeTheme).colors.cursor;
+            overlay = this.createHighlightOverlay(element);
         }
         
         overlay.innerHTML = html;
         
-        // Sync scroll
+        // Sync scroll position
         overlay.scrollTop = element.scrollTop;
         overlay.scrollLeft = element.scrollLeft;
+    }
+    
+    createHighlightOverlay(element) {
+        const overlay = document.createElement('div');
+        overlay.className = 'grace-highlight-overlay';
+        
+        // Position overlay
+        const rect = element.getBoundingClientRect();
+        overlay.style.cssText = `
+            position: absolute;
+            top: ${rect.top + window.scrollY}px;
+            left: ${rect.left + window.scrollX}px;
+            width: ${rect.width}px;
+            height: ${rect.height}px;
+            pointer-events: none;
+            white-space: pre-wrap;
+            overflow: hidden;
+            z-index: 1;
+            background: transparent;
+        `;
+        
+        // Copy computed styles
+        const computedStyle = window.getComputedStyle(element);
+        ['font-family', 'font-size', 'line-height', 'padding', 'border', 'box-sizing'].forEach(prop => {
+            overlay.style[prop] = computedStyle[prop];
+        });
+        
+        document.body.appendChild(overlay);
+        element._highlightOverlay = overlay;
+        
+        // Make element text transparent but keep caret visible
+        element.style.color = 'transparent';
+        const theme = this.themes.get(this.state.activeTheme);
+        element.style.caretColor = theme.colors.cursor;
+        
+        return overlay;
     }
     
     updateContentEditable(element, html) {
         // Save cursor position
         const selection = window.getSelection();
         const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-        const startOffset = range ? range.startOffset : 0;
+        let startOffset = 0;
+        let startContainer = null;
+        
+        if (range) {
+            startOffset = range.startOffset;
+            startContainer = range.startContainer;
+        }
         
         // Update content
         element.innerHTML = html;
         
-        // Restore cursor position
-        if (range) {
+        // Restore cursor position (simplified)
+        if (range && element.firstChild) {
             try {
                 const newRange = document.createRange();
-                newRange.setStart(element.firstChild, Math.min(startOffset, element.textContent.length));
-                newRange.collapse(true);
+                const textNode = this.findTextNodeAtOffset(element, startOffset);
+                if (textNode) {
+                    newRange.setStart(textNode.node, Math.min(textNode.offset, textNode.node.textContent.length));
+                    newRange.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(newRange);
+                }
+            } catch (e) {
+                // Cursor restoration failed, position at end
+                const newRange = document.createRange();
+                newRange.selectNodeContents(element);
+                newRange.collapse(false);
                 selection.removeAllRanges();
                 selection.addRange(newRange);
-            } catch (e) {
-                // Cursor restoration failed, ignore
             }
         }
     }
     
+    findTextNodeAtOffset(element, targetOffset) {
+        let currentOffset = 0;
+        const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+        
+        let node;
+        while (node = walker.nextNode()) {
+            const nodeLength = node.textContent.length;
+            if (currentOffset + nodeLength >= targetOffset) {
+                return {
+                    node: node,
+                    offset: targetOffset - currentOffset
+                };
+            }
+            currentOffset += nodeLength;
+        }
+        
+        return null;
+    }
+    
     // Worker Setup
     setupHighlightingWorker() {
-        const workerCode = `
-            let languages = new Map();
+        try {
+            const workerCode = `
+                let languages = new Map();
+                let tokenizers = new Map();
+                
+                self.onmessage = function(e) {
+                    const { id, command, data } = e.data;
+                    
+                    try {
+                        switch (command) {
+                            case 'tokenize':
+                                const tokens = tokenize(data.text, data.language);
+                                self.postMessage({ id, result: tokens });
+                                break;
+                            case 'registerLanguage':
+                                languages.set(data.id, data.definition);
+                                self.postMessage({ id, result: 'ok' });
+                                break;
+                            default:
+                                self.postMessage({ id, error: 'Unknown command: ' + command });
+                        }
+                    } catch (error) {
+                        self.postMessage({ id, error: error.message });
+                    }
+                };
+                
+                function tokenize(text, languageId) {
+                    // Simplified tokenization for worker
+                    const tokens = [];
+                    const lines = text.split('\\n');
+                    
+                    lines.forEach((line, lineIndex) => {
+                        const words = line.split(/\\s+/);
+                        let position = 0;
+                        
+                        words.forEach(word => {
+                            if (word) {
+                                tokens.push({
+                                    type: 'identifier',
+                                    value: word,
+                                    line: lineIndex,
+                                    start: position,
+                                    end: position + word.length
+                                });
+                            }
+                            position += word.length + 1;
+                        });
+                    });
+                    
+                    return tokens;
+                }
+            `;
             
-            self.onmessage = function(e) {
-                const { text, language } = e.data;
-                // Simple tokenization in worker
-                self.postMessage({ tokens: [] });
-            };
-        `;
-        
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(blob);
-        
-        // Create worker for each language
-        this.languages.forEach((language, id) => {
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            
             const worker = new Worker(workerUrl);
-            this.state.workers.set(id, worker);
-        });
+            this.state.workers.set('main', worker);
+            
+            worker.onerror = (error) => {
+                console.error('Worker error:', error);
+            };
+            
+            URL.revokeObjectURL(workerUrl);
+        } catch (error) {
+            console.warn('Could not create highlighting worker:', error);
+        }
     }
     
     // Style Injection
@@ -797,42 +1114,52 @@ class SyntaxHighlighter {
         styles.textContent = `
             /* Grace Syntax Highlighter Styles */
             .grace-code-container {
-                font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', 'Consolas', monospace;
                 font-size: 14px;
-                line-height: 1.5;
+                line-height: 1.6;
                 border-radius: 8px;
                 overflow: auto;
                 position: relative;
+                display: flex;
+                border: 1px solid rgba(255, 255, 255, 0.1);
             }
             
-            .grace-code-container.with-line-numbers {
-                display: flex;
+            .grace-code-container[data-line-numbers="true"] {
+                padding-left: 0;
             }
             
             .grace-line-numbers {
                 user-select: none;
-                padding: 16px 8px;
+                padding: 16px 12px 16px 16px;
                 text-align: right;
-                border-right: 1px solid var(--grace-border);
-                background: var(--grace-secondary);
-                color: var(--grace-text-secondary);
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                background: rgba(0, 0, 0, 0.2);
+                min-width: 50px;
+                flex-shrink: 0;
             }
             
             .grace-line-number {
                 font-size: 12px;
-                line-height: 1.5em;
+                line-height: 1.6em;
                 opacity: 0.6;
+                height: 1.6em;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
             }
             
             .grace-code-content {
                 flex: 1;
                 padding: 16px;
                 overflow-x: auto;
+                min-width: 0;
             }
             
             .grace-code-line {
                 white-space: pre;
                 position: relative;
+                min-height: 1.6em;
+                line-height: 1.6em;
             }
             
             .grace-code-line:hover {
@@ -840,12 +1167,13 @@ class SyntaxHighlighter {
             }
             
             .grace-code-line.active {
-                background: var(--grace-tertiary);
+                background: rgba(255, 255, 255, 0.1);
             }
             
             /* Token styles */
             .grace-token {
-                transition: opacity 0.2s;
+                transition: opacity 0.2s ease;
+                position: relative;
             }
             
             .grace-token:hover {
@@ -853,58 +1181,108 @@ class SyntaxHighlighter {
             }
             
             .grace-token-keyword {
-                font-weight: bold;
+                font-weight: 600;
             }
             
             .grace-token-comment {
                 font-style: italic;
-                opacity: 0.8;
+                opacity: 0.75;
             }
             
             .grace-token-string {
                 position: relative;
             }
             
+            .grace-token-function {
+                font-weight: 500;
+            }
+            
+            .grace-token-class {
+                font-weight: 600;
+            }
+            
             .grace-token-error {
                 position: relative;
-                text-decoration: underline wavy red;
+            }
+            
+            .grace-token-error::after {
+                content: '';
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 2px;
+                background: repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 2px,
+                    currentColor 2px,
+                    currentColor 4px
+                );
+                opacity: 0.6;
             }
             
             /* Selection */
             .grace-code-container ::selection {
-                background: var(--grace-accent);
-                color: black;
+                background: rgba(100, 149, 237, 0.3);
+                color: inherit;
             }
             
             /* Highlight overlay for textareas */
             .grace-highlight-overlay {
                 background: transparent;
-                color: var(--grace-text);
-                z-index: 1;
+                font-family: inherit;
+                pointer-events: none;
+                border: none;
+                outline: none;
+                resize: none;
+                overflow: hidden;
             }
             
-            .grace-highlight-overlay + textarea,
-            .grace-highlight-overlay + input {
-                position: relative;
-                z-index: 2;
+            .grace-highlight-overlay .grace-code-container {
+                border: none;
+                margin: 0;
+                padding: 0;
                 background: transparent;
             }
             
-            /* Themes */
-            .grace-theme-dark .grace-code-container {
-                background: #0a0b1e;
-                color: #ffffff;
+            /* Scrollbar styling */
+            .grace-code-container::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
             }
             
-            .grace-theme-light .grace-code-container {
-                background: #ffffff;
-                color: #000000;
+            .grace-code-container::-webkit-scrollbar-track {
+                background: rgba(255, 255, 255, 0.05);
             }
             
-            .grace-theme-matrix .grace-code-container {
-                background: #000000;
-                color: #00ff00;
-                text-shadow: 0 0 5px #00ff00;
+            .grace-code-container::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 4px;
+            }
+            
+            .grace-code-container::-webkit-scrollbar-thumb:hover {
+                background: rgba(255, 255, 255, 0.3);
+            }
+            
+            /* Responsive design */
+            @media (max-width: 768px) {
+                .grace-code-container {
+                    font-size: 12px;
+                }
+                
+                .grace-code-content {
+                    padding: 12px;
+                }
+                
+                .grace-line-numbers {
+                    padding: 12px 8px 12px 12px;
+                    min-width: 40px;
+                }
+                
+                .grace-line-number {
+                    font-size: 11px;
+                }
             }
         `;
         
@@ -913,9 +1291,9 @@ class SyntaxHighlighter {
     
     // Language Detection
     detectLanguage(text, filename) {
-        // Try by filename extension
+        // Try by filename extension first
         if (filename) {
-            const ext = '.' + filename.split('.').pop();
+            const ext = '.' + filename.split('.').pop().toLowerCase();
             for (const [id, lang] of this.languages) {
                 if (lang.extensions && lang.extensions.includes(ext)) {
                     return id;
@@ -923,18 +1301,54 @@ class SyntaxHighlighter {
             }
         }
         
-        // Simple content detection
-        if (text.includes('function') || text.includes('const') || text.includes('let')) {
-            return 'javascript';
-        }
-        if (text.includes('def ') || text.includes('import ') || text.includes('class ')) {
-            return 'python';
-        }
-        if (text.includes('<html') || text.includes('<div')) {
-            return 'html';
-        }
-        if (text.includes('{') && text.includes('}') && text.includes(':')) {
-            return 'css';
+        // Content-based detection
+        const detectors = [
+            {
+                language: 'html',
+                patterns: [/<!DOCTYPE\s+html/i, /<html\b/i, /<\/html>/i, /<head\b/i, /<body\b/i]
+            },
+            {
+                language: 'xml',
+                patterns: [/<\?xml\b/i, /<\/\w+>/]
+            },
+            {
+                language: 'json',
+                patterns: [/^\s*[\{\[]/, /"\s*:\s*/, /,\s*"[\w-]+"\s*:/]
+            },
+            {
+                language: 'css',
+                patterns: [/\{[^}]*\}/, /[\w-]+\s*:\s*[^;]+;/, /@media\b/, /@import\b/]
+            },
+            {
+                language: 'javascript',
+                patterns: [
+                    /\b(function|const|let|var|class|import|export)\b/,
+                    /=>\s*[\{\w]/, /\.\w+\(/, /console\.\w+/
+                ]
+            },
+            {
+                language: 'python',
+                patterns: [
+                    /\bdef\s+\w+\s*\(/, /\bclass\s+\w+/, /\bimport\s+\w+/, /\bfrom\s+\w+\s+import/,
+                    /:\s*$/, /^\s*#/, /\bprint\s*\(/
+                ]
+            },
+            {
+                language: 'sql',
+                patterns: [
+                    /\b(SELECT|FROM|WHERE|JOIN|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i
+                ]
+            },
+            {
+                language: 'markdown',
+                patterns: [/^#+\s/, /\*\*[^*]+\*\*/, /\[[^\]]+\]\([^)]+\)/, /^>\s/, /^[-*+]\s/]
+            }
+        ];
+        
+        for (const detector of detectors) {
+            if (detector.patterns.some(pattern => pattern.test(text))) {
+                return detector.language;
+            }
         }
         
         return 'plain';
@@ -944,22 +1358,41 @@ class SyntaxHighlighter {
     setTheme(themeId) {
         if (!this.themes.has(themeId)) {
             console.warn(`Theme ${themeId} not found`);
-            return;
+            return false;
         }
         
+        const oldTheme = this.state.activeTheme;
         this.state.activeTheme = themeId;
         
-        // Clear cache to force re-highlighting
+        // Clear cache to force re-highlighting with new theme
         this.state.cache.clear();
         
-        // Re-highlight all active elements
-        document.querySelectorAll('[data-highlighted]').forEach(element => {
-            const language = element.getAttribute('data-language');
-            const text = element.textContent;
-            this.highlight(text, language).then(result => {
-                element.innerHTML = result.html;
+        // Update CSS custom properties if they exist
+        const theme = this.themes.get(themeId);
+        if (theme && document.documentElement) {
+            const root = document.documentElement;
+            Object.entries(theme.colors).forEach(([key, value]) => {
+                root.style.setProperty(`--grace-color-${key}`, value);
             });
+        }
+        
+        // Re-highlight all highlighted elements
+        document.querySelectorAll('[data-grace-highlighted]').forEach(async (element) => {
+            const language = element.getAttribute('data-grace-language');
+            const text = element.getAttribute('data-grace-text') || element.textContent;
+            
+            if (language && text) {
+                try {
+                    const result = await this.highlight(text, language);
+                    element.innerHTML = result.html;
+                } catch (error) {
+                    console.error('Error re-highlighting element:', error);
+                }
+            }
         });
+        
+        console.log(`Theme changed from ${oldTheme} to ${themeId}`);
+        return true;
     }
     
     // Utility Methods
@@ -967,7 +1400,7 @@ class SyntaxHighlighter {
         return Array.from(this.languages.values()).map(lang => ({
             id: lang.id,
             name: lang.name,
-            extensions: lang.extensions
+            extensions: lang.extensions || []
         }));
     }
     
@@ -980,67 +1413,176 @@ class SyntaxHighlighter {
     
     clearCache() {
         this.state.cache.clear();
+        console.log('Syntax highlighter cache cleared');
+    }
+    
+    getStats() {
+        return {
+            initialized: this.state.initialized,
+            activeTheme: this.state.activeTheme,
+            cacheSize: this.state.cache.size,
+            languageCount: this.languages.size,
+            themeCount: this.themes.size,
+            workersActive: this.state.workers.size
+        };
     }
     
     // Grace Core Integration
     connectToGraceCore() {
-        if (window.graceCore) {
-            // Register syntax highlighter module
-            window.graceCore.loadModule('syntax_highlighter', {
-                name: 'syntax_highlighter',
-                version: '1.0.0',
-                execute: async (command, params) => {
-                    switch (command) {
-                        case 'highlight':
-                            return await this.highlight(params.text, params.language, params.options);
-                        case 'detect':
-                            return this.detectLanguage(params.text, params.filename);
-                        case 'setTheme':
-                            return this.setTheme(params.theme);
-                        case 'getLanguages':
-                            return this.getSupportedLanguages();
-                        case 'getThemes':
-                            return this.getSupportedThemes();
-                        default:
-                            throw new Error(`Unknown syntax highlighter command: ${command}`);
+        if (typeof window !== 'undefined' && window.graceCore) {
+            try {
+                // Register syntax highlighter module
+                window.graceCore.registerModule('syntax_highlighter', {
+                    name: 'syntax_highlighter',
+                    version: '1.0.0',
+                    description: 'Advanced syntax highlighting for Grace IDE',
+                    
+                    execute: async (command, params = {}) => {
+                        switch (command) {
+                            case 'highlight':
+                                if (!params.text || !params.language) {
+                                    throw new Error('Text and language are required for highlighting');
+                                }
+                                return await this.highlight(params.text, params.language, params.options);
+                                
+                            case 'detect':
+                                if (!params.text) {
+                                    throw new Error('Text is required for language detection');
+                                }
+                                return this.detectLanguage(params.text, params.filename);
+                                
+                            case 'setTheme':
+                                if (!params.theme) {
+                                    throw new Error('Theme ID is required');
+                                }
+                                return this.setTheme(params.theme);
+                                
+                            case 'getLanguages':
+                                return this.getSupportedLanguages();
+                                
+                            case 'getThemes':
+                                return this.getSupportedThemes();
+                                
+                            case 'clearCache':
+                                this.clearCache();
+                                return { success: true };
+                                
+                            case 'getStats':
+                                return this.getStats();
+                                
+                            case 'setupLive':
+                                if (!params.element || !params.language) {
+                                    throw new Error('Element and language are required for live highlighting');
+                                }
+                                return this.setupLiveHighlighter(params.element, params.language, params.options);
+                                
+                            default:
+                                throw new Error(`Unknown syntax highlighter command: ${command}`);
+                        }
                     }
-                }
-            });
-            
-            console.log('✅ Syntax Highlighter connected to Grace Core');
+                });
+                
+                console.log('✅ Syntax Highlighter connected to Grace Core');
+                return true;
+            } catch (error) {
+                console.error('❌ Failed to connect to Grace Core:', error);
+                return false;
+            }
         }
+        
+        return false;
     }
     
     // Cleanup
     destroy() {
-        // Terminate workers
-        this.state.workers.forEach(worker => {
-            worker.terminate();
-        });
-        this.state.workers.clear();
-        
-        // Clear cache
-        this.state.cache.clear();
-        
-        // Remove event listeners
-        document.querySelectorAll('[data-highlighted]').forEach(element => {
-            if (element._highlighter) {
-                element.removeEventListener('input', element._highlighter.handleInput);
+        try {
+            // Terminate workers
+            this.state.workers.forEach(worker => {
+                worker.terminate();
+            });
+            this.state.workers.clear();
+            
+            // Clear cache
+            this.state.cache.clear();
+            
+            // Remove event listeners and overlays
+            document.querySelectorAll('[data-grace-highlighted]').forEach(element => {
+                if (element._highlighter) {
+                    element.removeEventListener('input', element._highlighter.handleInput);
+                    delete element._highlighter;
+                }
+                
+                if (element._highlightOverlay) {
+                    element._highlightOverlay.remove();
+                    delete element._highlightOverlay;
+                }
+                
+                // Restore original element styles
+                element.style.color = '';
+                element.style.caretColor = '';
+            });
+            
+            // Remove injected styles
+            const existingStyles = document.getElementById('grace-syntax-highlighter-styles');
+            if (existingStyles) {
+                existingStyles.remove();
             }
-        });
-        
-        console.log('Syntax Highlighter destroyed');
+            
+            // Disconnect from Grace Core
+            if (window.graceCore && window.graceCore.unregisterModule) {
+                window.graceCore.unregisterModule('syntax_highlighter');
+            }
+            
+            this.state.initialized = false;
+            console.log('✅ Syntax Highlighter destroyed successfully');
+        } catch (error) {
+            console.error('❌ Error during Syntax Highlighter cleanup:', error);
+        }
     }
 }
 
-// Export SyntaxHighlighter
+// Export and auto-initialization
 if (typeof module !== 'undefined' && module.exports) {
+    // Node.js environment
     module.exports = SyntaxHighlighter;
 } else if (typeof window !== 'undefined') {
+    // Browser environment
     window.SyntaxHighlighter = SyntaxHighlighter;
     
     // Auto-initialize when DOM is ready
-    document.addEventListener('DOMContentLoaded', () => {
-        window.syntaxHighlighter = new SyntaxHighlighter();
-    });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            window.graceSyntaxHighlighter = new SyntaxHighlighter();
+        });
+    } else {
+        // DOM already loaded
+        window.graceSyntaxHighlighter = new SyntaxHighlighter();
+    }
+}
+
+// Additional helper functions for external use
+if (typeof window !== 'undefined') {
+    window.highlightCode = async function(element, language, options = {}) {
+        if (!window.graceSyntaxHighlighter) {
+            window.graceSyntaxHighlighter = new SyntaxHighlighter();
+        }
+        
+        const text = element.textContent || element.innerText || '';
+        const result = await window.graceSyntaxHighlighter.highlight(text, language, options);
+        
+        element.innerHTML = result.html;
+        element.setAttribute('data-grace-highlighted', 'true');
+        element.setAttribute('data-grace-language', language);
+        element.setAttribute('data-grace-text', text);
+        
+        return result;
+    };
+    
+    window.detectLanguage = function(text, filename) {
+        if (!window.graceSyntaxHighlighter) {
+            window.graceSyntaxHighlighter = new SyntaxHighlighter();
+        }
+        
+        return window.graceSyntaxHighlighter.detectLanguage(text, filename);
+    };
 }
