@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grace Module - {{MODULE_NAME}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0b1e;
+            --bg-secondary: #1a1b2e;
+            --bg-tertiary: #2a2b3e;
+            --accent-blue: #00d4ff;
+            --accent-green: #00ff88;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #ff8c00;
+            --accent-red: #ff4444;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a8b7;
+            --border: #3a3b4e;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Module Container */
+        .module-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Module Header */
+        .module-header {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            animation: slideIn 0.5s ease;
+        }
+
+        .module-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .module-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(45deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+            50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(0, 212, 255, 0.5); }
+        }
+
+        .module-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .module-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .module-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            padding: 10px 20px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--accent-blue);
+            color: var(--text-primary);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-btn:hover {
+            background: var(--accent-blue);
+            color: black;
+            transform: translateY(-2px);
+        }
+
+        .action-btn.primary {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+            color: black;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.warning {
+            background: var(--accent-orange);
+        }
+
+        .status-indicator.error {
+            background: var(--accent-red);
+        }
+
+        /* Main Content Grid */
+        .module-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* Configuration Panel */
+        .config-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            height: fit-content;
+            animation: slideIn 0.6s ease;
+        }
+
+        .config-header {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .config-section {
+            margin-bottom: 20px;
+        }
+
+        .config-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .config-input {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+
+        .config-select {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .config-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .toggle-switch {
+            width: 40px;
+            height: 20px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        .toggle-slider {
+            width: 16px;
+            height: 16px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active .toggle-slider {
+            left: 21px;
+            background: black;
+        }
+
+        /* Main Panel */
+        .main-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            animation: slideIn 0.7s ease;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .panel-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            border-color: var(--accent-blue);
+            background: var(--bg-primary);
+        }
+
+        .control-btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: black;
+        }
+
+        /* Module Display Area */
+        .module-display {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Processing Animation */
+        .processing-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 11, 30, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .processing-overlay.active {
+            display: flex;
+        }
+
+        .processing-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .metric-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 4px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-trend {
+            font-size: 11px;
+            color: var(--success);
+            margin-top: 8px;
+        }
+
+        .metric-trend.down {
+            color: var(--error);
+        }
+
+        /* Console Output */
+        .console-output {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 24px;
+        }
+
+        .console-line {
+            margin-bottom: 4px;
+        }
+
+        .console-timestamp {
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+
+        .console-info {
+            color: var(--accent-blue);
+        }
+
+        .console-success {
+            color: var(--accent-green);
+        }
+
+        .console-warning {
+            color: var(--accent-orange);
+        }
+
+        .console-error {
+            color: var(--accent-red);
+        }
+
+        /* Footer */
+        .module-footer {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 24px;
+        }
+
+        .footer-info {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .footer-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .module-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .module-header {
+                flex-direction: column;
+                gap: 16px;
+            }
+            
+            .status-bar {
+                justify-content: center;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Animations */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-blue);
+        }
+
+        /* Notification System */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-size: 14px;
+            z-index: 1000;
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Module Container -->
+    <div class="module-container">
+        <!-- Module Header -->
+        <header class="module-header">
+            <div class="module-info">
+                <div class="module-icon">{{MODULE_ICON}}</div>
+                <div>
+                    <h1 class="module-title">{{MODULE_NAME}}</h1>
+                    <p class="module-description">{{MODULE_DESCRIPTION}}</p>
+                </div>
+            </div>
+            <div class="module-actions">
+                <button class="action-btn" onclick="refreshModule()">
+                    <span>🔄</span> Refresh
+                </button>
+                <button class="action-btn" onclick="exportData()">
+                    <span>📤</span> Export
+                </button>
+                <button class="action-btn primary" onclick="executeModule()">
+                    <span>▶️</span> Execute
+                </button>
+            </div>
+        </header>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator"></div>
+                <span>Status: <strong id="moduleStatus">Active</strong></span>
+            </div>
+            <div class="status-item">
+                <span>⚡ Performance: <strong id="performanceMetric">{{PERFORMANCE}}</strong></span>
+            </div>
+            <div class="status-item">
+                <span>📊 Tasks: <strong id="taskCount">{{TASK_COUNT}}</strong></span>
+            </div>
+            <div class="status-item">
+                <span>🔄 Last Update: <strong id="lastUpdate">{{LAST_UPDATE}}</strong></span>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="module-content">
+            <!-- Configuration Panel -->
+            <aside class="config-panel">
+                <h3 class="config-header">Configuration</h3>
+                
+                <div class="config-section">
+                    <label class="config-label">Mode</label>
+                    <select class="config-select" id="modeSelect" onchange="updateMode()">
+                        <option value="auto">Automatic</option>
+                        <option value="manual">Manual</option>
+                        <option value="learning">Learning</option>
+                        <option value="performance">Performance</option>
+                    </select>
+                </div>
+
+                <div class="config-section">
+                    <label class="config-label">Threshold</label>
+                    <input type="range" class="config-input" id="thresholdSlider" 
+                           min="0" max="100" value="75" oninput="updateThreshold(this.value)">
+                    <div style="text-align: center; margin-top: 4px; font-size: 12px;">
+                        <span id="thresholdValue">75%</span>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <label class="config-label">Options</label>
+                    <div class="config-toggle" onclick="toggleOption('realtime')">
+                        <div class="toggle-switch active" id="realtimeToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                        <span>Real-time Processing</span>
+                    </div>
+                    <div class="config-toggle" onclick="toggleOption('autoSave')" style="margin-top: 12px;">
+                        <div class="toggle-switch" id="autoSaveToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                        <span>Auto-save Results</span>
+                    </div>
+                    <div class="config-toggle" onclick="toggleOption('debug')" style="margin-top: 12px;">
+                        <div class="toggle-switch" id="debugToggle">
+                            <div class="toggle-slider"></div>
+                        </div>
+                        <span>Debug Mode</span>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <button class="action-btn" style="width: 100%;" onclick="resetConfiguration()">
+                        Reset to Defaults
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Panel -->
+            <main class="main-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">{{PANEL_TITLE}}</h2>
+                    <div class="panel-controls">
+                        <button class="control-btn active" onclick="switchView('overview')">Overview</button>
+                        <button class="control-btn" onclick="switchView('details')">Details</button>
+                        <button class="control-btn" onclick="switchView('analytics')">Analytics</button>
+                    </div>
+                </div>
+
+                <!-- Module Display Area -->
+                <div class="module-display" id="moduleDisplay">
+                    <!-- Dynamic content will be loaded here -->
+                    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <div style="font-size: 48px; margin-bottom: 16px;">{{MODULE_ICON}}</div>
+                        <p>Module ready for initialization</p>
+                        <p style="margin-top: 8px; font-size: 12px;">Click Execute to start processing</p>
+                    </div>
+
+                    <!-- Processing Overlay -->
+                    <div class="processing-overlay" id="processingOverlay">
+                        <div style="text-align: center;">
+                            <div class="processing-spinner"></div>
+                            <p style="margin-top: 16px; color: var(--text-primary);">Processing...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="metric1Value">{{METRIC_1_VALUE}}</div>
+                        <div class="metric-label">{{METRIC_1_LABEL}}</div>
+                        <div class="metric-trend">↑ {{METRIC_1_TREND}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metric2Value">{{METRIC_2_VALUE}}</div>
+                        <div class="metric-label">{{METRIC_2_LABEL}}</div>
+                        <div class="metric-trend">↑ {{METRIC_2_TREND}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metric3Value">{{METRIC_3_VALUE}}</div>
+                        <div class="metric-label">{{METRIC_3_LABEL}}</div>
+                        <div class="metric-trend down">↓ {{METRIC_3_TREND}}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metric4Value">{{METRIC_4_VALUE}}</div>
+                        <div class="metric-label">{{METRIC_4_LABEL}}</div>
+                        <div class="metric-trend">↑ {{METRIC_4_TREND}}</div>
+                    </div>
+                </div>
+
+                <!-- Console Output -->
+                <div class="console-output" id="consoleOutput">
+                    <div class="console-line">
+                        <span class="console-timestamp">[{{TIMESTAMP}}]</span>
+                        <span class="console-info">Module initialized successfully</span>
+                    </div>
+                    <div class="console-line">
+                        <span class="console-timestamp">[{{TIMESTAMP}}]</span>
+                        <span class="console-success">Configuration loaded from cache</span>
+                    </div>
+                    <div class="console-line">
+                        <span class="console-timestamp">[{{TIMESTAMP}}]</span>
+                        <span class="console-info">Waiting for execution command...</span>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Footer -->
+        <footer class="module-footer">
+            <div class="footer-info">
+                <span>Grace Module v{{VERSION}} • {{MODULE_ID}}</span>
+            </div>
+            <div class="footer-actions">
+                <button class="control-btn" onclick="viewDocumentation()">📚 Docs</button>
+                <button class="control-btn" onclick="reportIssue()">🐛 Report Issue</button>
+                <button class="control-btn" onclick="viewLogs()">📋 View Logs</button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Module State
+        let moduleState = {
+            status: 'active',
+            mode: 'auto',
+            threshold: 75,
+            options: {
+                realtime: true,
+                autoSave: false,
+                debug: false
+            },
+            metrics: {
+                performance: 0,
+                tasks: 0,
+                efficiency: 0,
+                uptime: 0
+            }
+        };
+
+        // Initialize Module
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeModule();
+            startRealtimeUpdates();
+        });
+
+        function initializeModule() {
+            console.log('🧠 Initializing Grace Module: {{MODULE_NAME}}');
+            updateConsole('Module initialization started', 'info');
+            
+            // Load saved configuration
+            loadConfiguration();
+            
+            // Update UI with initial state
+            updateUI();
+            
+            updateConsole('Module ready', 'success');
+        }
+
+        // Module Functions
+        function executeModule() {
+            updateConsole('Executing module...', 'info');
+            showProcessing(true);
+            
+            // Simulate module execution
+            setTimeout(() => {
+                showProcessing(false);
+                updateConsole('Module execution completed', 'success');
+                updateMetrics();
+                showNotification('✅ Module executed successfully');
+            }, 2000);
+        }
+
+        function refreshModule() {
+            updateConsole('Refreshing module data...', 'info');
+            location.reload();
+        }
+
+        function exportData() {
+            updateConsole('Exporting module data...', 'info');
+            const data = JSON.stringify(moduleState, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '{{MODULE_NAME}}_export.json';
+            a.click();
+            showNotification('📤 Data exported successfully');
+        }
+
+        // Configuration Functions
+        function updateMode() {
+            const mode = document.getElementById('modeSelect').value;
+            moduleState.mode = mode;
+            updateConsole(`Mode changed to: ${mode}`, 'info');
+            saveConfiguration();
+        }
+
+        function updateThreshold(value) {
+            moduleState.threshold = value;
+            document.getElementById('thresholdValue').textContent = value + '%';
+            updateConsole(`Threshold updated to: ${value}%`, 'info');
+            saveConfiguration();
+        }
+
+        function toggleOption(option) {
+            const toggle = document.getElementById(option + 'Toggle');
+            const isActive = toggle.classList.contains('active');
+            
+            if (isActive) {
+                toggle.classList.remove('active');
+                moduleState.options[option] = false;
+            } else {
+                toggle.classList.add('active');
+                moduleState.options[option] = true;
+            }
+            
+            updateConsole(`${option} ${isActive ? 'disabled' : 'enabled'}`, 'info');
+            saveConfiguration();
+        }
+
+        function resetConfiguration() {
+            if (confirm('Reset all configuration to defaults?')) {
+                localStorage.removeItem('graceModuleConfig_{{MODULE_ID}}');
+                location.reload();
+            }
+        }
+
+        function saveConfiguration() {
+            localStorage.setItem('graceModuleConfig_{{MODULE_ID}}', JSON.stringify(moduleState));
+        }
+
+        function loadConfiguration() {
+            const saved = localStorage.getItem('graceModuleConfig_{{MODULE_ID}}');
+            if (saved) {
+                moduleState = JSON.parse(saved);
+                updateConsole('Configuration loaded from storage', 'success');
+            }
+        }
+
+        // View Functions
+        function switchView(view) {
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            updateConsole(`Switched to ${view} view`, 'info');
+            loadViewContent(view);
+        }
+
+        function loadViewContent(view) {
+            const display = document.getElementById('moduleDisplay');
+            
+            switch(view) {
+                case 'overview':
+                    display.innerHTML = `
+                        <div style="padding: 20px;">
+                            <h3>Module Overview</h3>
+                            <p>{{MODULE_OVERVIEW_CONTENT}}</p>
+                        </div>
+                    `;
+                    break;
+                case 'details':
+                    display.innerHTML = `
+                        <div style="padding: 20px;">
+                            <h3>Detailed Information</h3>
+                            <p>{{MODULE_DETAILS_CONTENT}}</p>
+                        </div>
+                    `;
+                    break;
+                case 'analytics':
+                    display.innerHTML = `
+                        <div style="padding: 20px;">
+                            <h3>Analytics Dashboard</h3>
+                            <p>{{MODULE_ANALYTICS_CONTENT}}</p>
+                        </div>
+                    `;
+                    break;
+            }
+        }
+
+        // UI Update Functions
+        function updateUI() {
+            document.getElementById('moduleStatus').textContent = moduleState.status;
+            document.getElementById('performanceMetric').textContent = moduleState.metrics.performance + 'x';
+            document.getElementById('taskCount').textContent = moduleState.metrics.tasks;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            
+            // Update configuration UI
+            document.getElementById('modeSelect').value = moduleState.mode;
+            document.getElementById('thresholdSlider').value = moduleState.threshold;
+            document.getElementById('thresholdValue').textContent = moduleState.threshold + '%';
+            
+            // Update toggles
+            Object.keys(moduleState.options).forEach(option => {
+                const toggle = document.getElementById(option + 'Toggle');
+                if (moduleState.options[option]) {
+                    toggle.classList.add('active');
+                } else {
+                    toggle.classList.remove('active');
+                }
+            });
+        }
+
+        function updateMetrics() {
+            // Simulate metric updates
+            moduleState.metrics.performance = (Math.random() * 5 + 1).toFixed(1);
+            moduleState.metrics.tasks = Math.floor(Math.random() * 20) + 5;
+            moduleState.metrics.efficiency = Math.floor(Math.random() * 20) + 80;
+            moduleState.metrics.uptime = Math.floor(Math.random() * 100) + 900;
+            
+            // Update metric cards
+            document.getElementById('metric1Value').textContent = moduleState.metrics.performance + 'x';
+            document.getElementById('metric2Value').textContent = moduleState.metrics.tasks;
+            document.getElementById('metric3Value').textContent = moduleState.metrics.efficiency + '%';
+            document.getElementById('metric4Value').textContent = moduleState.metrics.uptime + 's';
+            
+            updateUI();
+        }
+
+        // Console Functions
+        function updateConsole(message, type = 'info') {
+            const console = document.getElementById('consoleOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.className = 'console-line';
+            line.innerHTML = `
+                <span class="console-timestamp">[${timestamp}]</span>
+                <span class="console-${type}">${message}</span>
+            `;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        // Utility Functions
+        function showProcessing(show) {
+            const overlay = document.getElementById('processingOverlay');
+            if (show) {
+                overlay.classList.add('active');
+            } else {
+                overlay.classList.remove('active');
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function startRealtimeUpdates() {
+            setInterval(() => {
+                if (moduleState.options.realtime) {
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                    
+                    // Simulate real-time metric updates
+                    if (Math.random() > 0.7) {
+                        updateMetrics();
+                    }
+                }
+            }, 5000);
+        }
+
+        // Footer Functions
+        function viewDocumentation() {
+            window.open('{{DOCUMENTATION_URL}}', '_blank');
+        }
+
+        function reportIssue() {
+            window.open('{{ISSUE_URL}}', '_blank');
+        }
+
+        function viewLogs() {
+            updateConsole('Opening logs viewer...', 'info');
+            // Implementation for log viewer
+        }
+
+        // API Integration (placeholder for real implementation)
+        async function connectToGraceAPI() {
+            try {
+                const response = await fetch('{{API_ENDPOINT}}/module/{{MODULE_ID}}/status');
+                const data = await response.json();
+                moduleState = { ...moduleState, ...data };
+                updateUI();
+                updateConsole('Connected to Grace API', 'success');
+            } catch (error) {
+                updateConsole('Running in offline mode', 'warning');
+            }
+        }
+
+        // Initialize API connection
+        connectToGraceAPI();
+    </script>
+</body>
+</html>
