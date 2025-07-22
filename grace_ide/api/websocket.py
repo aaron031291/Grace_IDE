@@ -10,12 +10,11 @@ import logging
 import uuid
 import time
 from datetime import datetime
-from typing import Dict, Set, Optional, Callable, Any
-from dataclasses import dataclass, asdict
+from typing import Dict, Set, Callable, Any, List
+from dataclasses import dataclass
 from collections import defaultdict
 import jwt
 import hashlib
-from functools import wraps
 
 # Import our modules
 from .file_operations import handle_file_operation_request
@@ -126,7 +125,7 @@ class WebSocketServer:
             ping_interval=30,
             ping_timeout=10
         ):
-            logger.info(f"Server started successfully")
+            logger.info("Server started successfully")
             await asyncio.Future()  # Run forever
     
     async def handle_client(self, websocket, path):
@@ -518,8 +517,6 @@ class CodeCompletionHandler(CustomHandler):
     """Handle code completion requests"""
     
     async def handle(self, client: Client, data: Dict):
-        file_path = data.get('file_path')
-        position = data.get('position')
         
         # In a real implementation, this would use LSP or similar
         completions = [

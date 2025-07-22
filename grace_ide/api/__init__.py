@@ -59,7 +59,7 @@ async def start_api_server(host='localhost', port=8765, workspace_root='.'):
     )
     
     logger = logging.getLogger(__name__)
-    logger.info(f"Starting Grace_IDE API Server")
+    logger.info("Starting Grace_IDE API Server")
     logger.info(f"Host: {host}:{port}")
     logger.info(f"Workspace: {workspace_root}")
     
@@ -77,7 +77,6 @@ def initialize_api():
     Initialize the API module
     This can be used to set up any required resources
     """
-    import os
     from pathlib import Path
     
     # Ensure required directories exist
