@@ -3,7 +3,6 @@ Grace_IDE File Operations Module
 Handles file system operations including CRUD, search, and file watching
 """
 
-import os
 import json
 import shutil
 import asyncio
@@ -12,8 +11,8 @@ import hashlib
 import mimetypes
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Union, AsyncGenerator
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional, AsyncGenerator
+from dataclasses import dataclass
 import watchdog.observers
 import watchdog.events
 from collections import deque
@@ -219,7 +218,7 @@ class FileOperationsManager:
                     shutil.rmtree(file_path)
             else:
                 # Move to trash
-                trash_path = await self._move_to_trash(file_path)
+                _ = await self._move_to_trash(file_path)
                 
             # Record operation
             self._record_operation('delete_file', path, {'permanent': permanent})
@@ -564,7 +563,7 @@ class FileOperationsManager:
             
             return info
             
-        except Exception as e:
+        except Exception:
             return None
     
     async def compress_files(self, paths: List[str], output_name: str, 
